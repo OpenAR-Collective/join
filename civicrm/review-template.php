@@ -6,14 +6,38 @@ use Civi\Api4\MessageTemplate;
 $title = 'OpenAR - New membership application for review';
 $view = 'https://join.openarcollective.org/civicrm/?page=CiviCRM&q=civicrm/contact/view&reset=1&cid={contact.id}';
 
+/**
+ * Custom fields are exposed to the token processor as {contact.custom_N}, not by
+ * the API name. Resolving N here rather than hardcoding it keeps the template
+ * correct if a field is ever rebuilt, and fails loudly instead of silently
+ * emailing reviewers a blank employer, which is the one field they check.
+ */
+function openar_token(string $group, string $field): string {
+  $f = civicrm_api4('CustomField', 'get', [
+    'select' => ['id'],
+    'where' => [['custom_group_id.name', '=', $group], ['name', '=', $field]],
+    'checkPermissions' => FALSE,
+  ])->first();
+  if (!$f) {
+    throw new RuntimeException("custom field {$group}.{$field} not found; template not written");
+  }
+  return '{contact.custom_' . $f['id'] . '}';
+}
+
+$employer = openar_token('Membership', 'employer_affiliation');
+$linkedin = openar_token('Membership', 'linkedin_url');
+echo "employer token: $employer
+linkedin token: $linkedin
+";
+
 $text = <<<TXT
 A new membership application has been confirmed and is waiting for review.
-
+{\$duplicateWarningText}
 Name:       {contact.display_name}
 Email:      {contact.email_primary.email}
-Employer:   {contact.Membership.employer_affiliation}
+Employer:   $employer
 Role:       {contact.job_title}
-LinkedIn:   {contact.Membership.linkedin_url}
+LinkedIn:   $linkedin
 
 Review the record:
 $view
@@ -32,13 +56,13 @@ TXT;
 
 $html = <<<HTML
 <p>A new membership application has been confirmed and is waiting for review.</p>
-
+{\$duplicateWarningHtml}
 <table cellpadding="4" style="border-collapse:collapse">
   <tr><td><strong>Name</strong></td><td>{contact.display_name}</td></tr>
   <tr><td><strong>Email</strong></td><td>{contact.email_primary.email}</td></tr>
-  <tr><td><strong>Employer</strong></td><td>{contact.Membership.employer_affiliation}</td></tr>
+  <tr><td><strong>Employer</strong></td><td>$employer</td></tr>
   <tr><td><strong>Role</strong></td><td>{contact.job_title}</td></tr>
-  <tr><td><strong>LinkedIn</strong></td><td>{contact.Membership.linkedin_url}</td></tr>
+  <tr><td><strong>LinkedIn</strong></td><td>$linkedin</td></tr>
 </table>
 
 <p><a href="$view">Review the record</a></p>

@@ -17,9 +17,10 @@ sudo -u www-data wp --path=/var/www/openarcollective.org eval-file <script>.php
 | `pending-applications.php` | Lists people who never confirmed; resends a link |
 | `confirm-email.php` | Superseded by `verify-email.php`, kept for history |
 | `review-template.php` | Reviewer notification template |
+| `repeat-applicant-templates.php` | Emails for someone applying with an address already on file |
 | `fix-lang.php` | Populates `languageLimit` (see note) |
 
-## Three things that are easy to get wrong
+## Four things that are easy to get wrong
 
 **Email must be a join, not an entity.** Afform's verification routine looks for
 the address in the contact entity's `joins` and intersects them against the
@@ -47,3 +48,30 @@ This install runs in multilingual mode (localized tables such as
 populated. Locale resolution calls `array_keys()` on it, so every contact-scoped
 templated email threw a `TypeError` in `Civi\Core\Locale`. `fix-lang.php` sets it
 to `['en_US' => 1]`.
+
+## Custom field tokens are `custom_N`, not the API name
+
+The token processor exposes custom fields as `{contact.custom_13}`. The API-style
+`{contact.Membership.employer_affiliation}` renders empty and only warns in the
+log, so the reviewers were being emailed a blank employer, which is the single
+field the review step exists to check. `review-template.php` resolves the number
+from the field name at install time and throws if the field is missing, so this
+fails loudly rather than silently.
+
+## Act on the submission, not on contact creation
+
+`Afform\Process` writes the contact first and its joins and custom fields after,
+then flips the submission to `Processed`. A `civicrm_postCommit` hook on
+`Individual` create therefore runs too early: no email address exists yet and the
+custom fields are empty. The plugin hooks the submission going to `Processed`
+instead, and reads the contact ids out of the submission data, where
+`combineValuesAndIds` has put them at `Individual1[0].id`.
+
+## Repeat applicants are answered by email, never on the page
+
+The application form is public and anonymous. A page that said "you are already a
+member" would let anyone type an address and learn whether that person is a
+member, and their member number. The Foundation does not publish a list of
+members, so the page response is identical in every case and the answer goes only
+to the address that was typed. One courtesy email per address per 24 hours, so
+the form cannot be used to flood a member's inbox.
