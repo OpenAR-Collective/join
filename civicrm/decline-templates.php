@@ -24,7 +24,7 @@ The Foundation has reviewed your membership application and declined it.
 
 {$reason}
 
-You can ask the Board to review that decision. Write to {$appealInbox} and say why you think it was wrong. Under the Membership Application you have one appeal to the Board.
+You can ask the Board to review that decision. Write to {$appealInbox}, say why you think it was wrong, and it will be put to the Board. Under the Membership Application you have one appeal.
 
 If we have misread something, or if your circumstances have changed, tell us and we will look again.
 
@@ -40,7 +40,7 @@ TEXT,
 
 <p style="padding:12px 16px;border-left:3px solid #b8b0a4;background:#f6f4f0;">{$reason}</p>
 
-<p>You can ask the Board to review that decision. Write to <a href="mailto:{$appealInbox}">{$appealInbox}</a> and say why you think it was wrong. Under the Membership Application you have one appeal to the Board.</p>
+<p>You can ask the Board to review that decision. Write to <a href="mailto:{$appealInbox}">{$appealInbox}</a>, say why you think it was wrong, and it will be put to the Board. Under the Membership Application you have one appeal.</p>
 
 <p>If we have misread something, or if your circumstances have changed, tell us and we will look again.</p>
 
@@ -61,11 +61,9 @@ $templates[] = [
 
 A decline with no reason is worse than no decline at all, so the email is held until a reason is written.
 
-To finish it:
+To finish it, open the contact, fill in "Reason given to the applicant", and save. The decline goes out on save; there is nothing else to do.
 
-1. Open the contact and fill in "Reason given to the applicant". Write it as something you are willing for them to read. Reviewer working notes belong in "Review notes", which is never sent.
-2. Run:
-   sudo -u www-data wp --path=/var/www/openarcollective.org eval-file ~/openar-scripts/send-decline.php {$contactId}
+Write it as something you are willing for them to read. Reviewer working notes belong in "Review notes", which is never sent to anyone.
 
 Nothing else about the application has changed. They remain declined and out of the review queue.
 
@@ -76,13 +74,9 @@ TEXT,
 
 <p>A decline with no reason is worse than no decline at all, so the email is held until a reason is written.</p>
 
-<p>To finish it:</p>
+<p>To finish it, open the contact, fill in <strong>Reason given to the applicant</strong>, and save. The decline goes out on save; there is nothing else to do.</p>
 
-<ol>
-  <li>Open the contact and fill in <strong>Reason given to the applicant</strong>. Write it as something you are willing for them to read. Reviewer working notes belong in <strong>Review notes</strong>, which is never sent.</li>
-  <li>Run:<br />
-    <code>sudo -u www-data wp --path=/var/www/openarcollective.org eval-file ~/openar-scripts/send-decline.php {$contactId}</code></li>
-</ol>
+<p>Write it as something you are willing for them to read. Reviewer working notes belong in <strong>Review notes</strong>, which is never sent to anyone.</p>
 
 <p>Nothing else about the application has changed. They remain declined and out of the review queue.</p>
 

@@ -48,9 +48,13 @@ const OPENAR_DECLINE_INCOMPLETE_TEMPLATE = 'OpenAR - Decline recorded without a 
 const OPENAR_DECLINE_ACTIVITY = 'Membership application declined';
 
 /**
- * Where an appeal goes. This should not be the same inbox that issued the
- * decline, since the Membership Application gives the appeal to the Board.
- * Point it at a board alias once one exists.
+ * Where an appeal goes.
+ *
+ * Deliberately membership@ rather than the board@ list, which reaches all five
+ * directors at once and would have them answering an appellant separately and
+ * inconsistently. One person takes the appeal and puts it to the Board as a
+ * matter of procedure, which is what Term 13 describes. Do not "fix" this to a
+ * board-wide alias.
  */
 const OPENAR_APPEAL_INBOX = 'membership@openarcollective.org';
 
@@ -692,25 +696,82 @@ function openar_decline_applicant(int $contactId): void {
 
   openar_remove_from_group($contactId, OPENAR_REVIEW_GROUP);
 
+  if (!openar_already_declined($contactId)) {
+    $reason = trim((string) ($contact['Membership.decline_reason'] ?? ''));
+    if ($reason === '') {
+      openar_report_missing_decline_reason($contact);
+    }
+    else {
+      openar_send_decline($contactId, $reason);
+    }
+  }
+
+  // Stamped last on purpose. Writing to the contact fires the edit hook below,
+  // which by this point finds the decline already sent and does nothing.
   if (empty($contact['Membership.declined_date'])) {
     \Civi\Api4\Contact::update(FALSE)
       ->addWhere('id', '=', $contactId)
       ->addValue('Membership.declined_date', date('Y-m-d H:i:s'))
       ->execute();
   }
+}
 
-  if (openar_already_declined($contactId)) {
+add_action('civicrm_postCommit', 'openar_onboarding_contact_commit', 10, 4);
+
+/**
+ * Someone filled in the decline reason and saved. Send the decline.
+ *
+ * This is what keeps the ordinary path inside CiviCRM's own screens. A decline
+ * recorded before its reason was written used to wait for a command to be run by
+ * hand, which is not a reasonable thing to ask of whoever is doing reviews.
+ * Either order now works: add to the group and then write the reason, or write
+ * the reason and then add to the group.
+ */
+function openar_onboarding_contact_commit(string $op, string $objectName, $objectId, &$objectRef): void {
+  if ($op !== 'edit' || $objectName !== 'Individual' || empty($objectId)) {
     return;
   }
 
-  $reason = trim((string) ($contact['Membership.decline_reason'] ?? ''));
+  try {
+    $contactId = (int) $objectId;
 
-  if ($reason === '') {
-    openar_report_missing_decline_reason($contact);
-    return;
+    $reason = trim((string) (\Civi\Api4\Contact::get(FALSE)
+      ->addSelect('Membership.decline_reason')
+      ->addWhere('id', '=', $contactId)
+      ->execute()->first()['Membership.decline_reason'] ?? ''));
+
+    if ($reason === '') {
+      return;
+    }
+    if (openar_already_declined($contactId)) {
+      return;
+    }
+    if (!openar_in_group($contactId, OPENAR_DECLINED_GROUP)) {
+      return;
+    }
+
+    openar_send_decline($contactId, $reason);
+  }
+  catch (\Throwable $e) {
+    \Civi::log()->error('OpenAR onboarding: pending decline for {cid} failed: {msg}', [
+      'cid' => $objectId,
+      'msg' => $e->getMessage(),
+    ]);
+  }
+}
+
+function openar_in_group(int $contactId, string $groupName): bool {
+  $groupId = openar_group_id($groupName);
+  if (!$groupId) {
+    return FALSE;
   }
 
-  openar_send_decline($contactId, $reason);
+  return (bool) \Civi\Api4\GroupContact::get(FALSE)
+    ->addSelect('id')
+    ->addWhere('contact_id', '=', $contactId)
+    ->addWhere('group_id', '=', $groupId)
+    ->addWhere('status', '=', 'Added')
+    ->execute()->count();
 }
 
 /** Send the decline. Returns false when there is nothing to send it to. */

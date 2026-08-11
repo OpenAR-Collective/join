@@ -135,19 +135,36 @@ speculative or blunt that must not be mailed to the person it is about. Only
 
 **No reason means no email.** A decline that gives no reason is worse than one
 that has not been sent yet, so the applicant hears nothing and the reviewers get
-an alert telling them what to do. Write the reason, then:
+an alert. Filling in the reason and saving sends it. Either order works: add to
+the group and then write the reason, or write the reason and then add to the
+group. Nothing about declining needs a command line.
 
-```bash
-sudo -u www-data wp --path=/var/www/openarcollective.org eval-file send-decline.php 42
-```
-
-Called with no id it lists everyone declined, whether a reason is recorded, and
-whether they have been told.
+`send-decline.php` remains as a report and a fallback. With no id it lists
+everyone declined, whether a reason is recorded, and whether they have been
+told.
 
 Sending is recorded as an activity and checked before every send, so re-adding
 someone to the group never mails them twice.
 
-**The appeal inbox is a placeholder.** `OPENAR_APPEAL_INBOX` currently points at
-`membership@`, which is the inbox that issues declines, so an appeal would go to
-the people who made the decision. The Membership Application gives the appeal to
-the Board. Point that constant at a board alias once one exists.
+**The appeal goes to `membership@`, and that is deliberate.** There is a
+`board@` list reaching all five directors, but sending an appellant there means
+five people answering separately and inconsistently. One person takes the appeal
+and puts it to the Board as a matter of procedure, which is what Term 13
+describes. Do not "fix" `OPENAR_APPEAL_INBOX` to a board-wide alias.
+
+## Keep operational actions inside CiviCRM
+
+Whoever does reviews should never have to open a terminal. Every step of the
+live process is therefore a thing you can do on CiviCRM's own screens:
+
+| Action | How it is done |
+|---|---|
+| Approve | Add the contact to `members` |
+| Decline | Add to `applicants_declined`, and fill in the reason |
+| Record why | Type into the contact's custom fields |
+
+The CLI scripts here are provisioning (run once, by a developer) and testing.
+The one operational gap left is resending a confirmation link to someone whose
+link lapsed, because unconfirmed applications are form submissions rather than
+contacts and CiviCRM has no screen for them. That is the first candidate for the
+admin toolbox on the roadmap.
