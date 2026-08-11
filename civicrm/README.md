@@ -19,6 +19,9 @@ sudo -u www-data wp --path=/var/www/openarcollective.org eval-file <script>.php
 | `review-template.php` | Reviewer notification template |
 | `repeat-applicant-templates.php` | Emails for someone applying with an address already on file |
 | `welcome-template.php` | Welcome email sent on admission |
+| `decline-fields.php` | The decline reason and date fields |
+| `decline-templates.php` | Decline email, and the alert when no reason is recorded |
+| `send-decline.php` | Lists declines; sends one whose reason arrived late |
 | `reset-applicant.php` | Purges one address so onboarding can be walked again |
 | `fix-lang.php` | Populates `languageLimit` (see note) |
 
@@ -118,3 +121,33 @@ $contactIds)`, where the object id is the *group* and the ref is a list of
 contact ids. API4 writes go through the DAO and pass the GroupContact row
 instead. Both occur here, the first from the CiviCRM screens and the second from
 this plugin's own code, so the handler detects which it was given.
+
+## Declining
+
+Adding someone to `applicants_declined` sends the decline. The plugin stamps the
+date, clears them out of the review queue, and emails them the reason, the appeal
+route, and the fact that nothing they can actually use is affected.
+
+**The reason comes from `decline_reason`, never from `application_notes`.** Those
+are the reviewer's working notes and will sooner or later hold something
+speculative or blunt that must not be mailed to the person it is about. Only
+`decline_reason` is ever sent, and its help text says so on the form.
+
+**No reason means no email.** A decline that gives no reason is worse than one
+that has not been sent yet, so the applicant hears nothing and the reviewers get
+an alert telling them what to do. Write the reason, then:
+
+```bash
+sudo -u www-data wp --path=/var/www/openarcollective.org eval-file send-decline.php 42
+```
+
+Called with no id it lists everyone declined, whether a reason is recorded, and
+whether they have been told.
+
+Sending is recorded as an activity and checked before every send, so re-adding
+someone to the group never mails them twice.
+
+**The appeal inbox is a placeholder.** `OPENAR_APPEAL_INBOX` currently points at
+`membership@`, which is the inbox that issues declines, so an appeal would go to
+the people who made the decision. The Membership Application gives the appeal to
+the Board. Point that constant at a board alias once one exists.

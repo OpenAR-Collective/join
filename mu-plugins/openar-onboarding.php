@@ -43,6 +43,16 @@ const OPENAR_REPEAT_NOTICE_HOURS = 24;
 const OPENAR_REPEAT_ACTIVITY = 'Membership application received from an address already on file';
 
 const OPENAR_WELCOME_TEMPLATE = 'OpenAR - Welcome to the Collective';
+const OPENAR_DECLINE_TEMPLATE = 'OpenAR - Membership application declined';
+const OPENAR_DECLINE_INCOMPLETE_TEMPLATE = 'OpenAR - Decline recorded without a reason';
+const OPENAR_DECLINE_ACTIVITY = 'Membership application declined';
+
+/**
+ * Where an appeal goes. This should not be the same inbox that issued the
+ * decline, since the Membership Application gives the appeal to the Board.
+ * Point it at a board alias once one exists.
+ */
+const OPENAR_APPEAL_INBOX = 'membership@openarcollective.org';
 
 /**
  * Forms whose confirmation email this plugin sends. Each must have
@@ -589,18 +599,17 @@ function openar_onboarding_group_commit(string $op, string $objectName, $objectI
   }
 
   try {
-    $membersGroupId = openar_group_id(OPENAR_MEMBERS_GROUP);
-    if (!$membersGroupId) {
-      return;
-    }
+    $watched = [
+      OPENAR_MEMBERS_GROUP => 'openar_admit_member',
+      OPENAR_DECLINED_GROUP => 'openar_decline_applicant',
+    ];
 
+    $groupId = NULL;
     $contactIds = [];
 
     if (is_array($objectRef) && $objectRef && is_numeric(reset($objectRef))) {
       // BAO shape: $objectId is the group, $objectRef the contacts.
-      if ((int) $objectId !== $membersGroupId) {
-        return;
-      }
+      $groupId = (int) $objectId;
       $contactIds = array_map('intval', array_values($objectRef));
     }
     else {
@@ -609,14 +618,20 @@ function openar_onboarding_group_commit(string $op, string $objectName, $objectI
         ->addSelect('contact_id', 'group_id', 'status')
         ->addWhere('id', '=', (int) $objectId)
         ->execute()->first();
-      if (!$row || (int) $row['group_id'] !== $membersGroupId || $row['status'] !== 'Added') {
+      if (!$row || $row['status'] !== 'Added') {
         return;
       }
+      $groupId = (int) $row['group_id'];
       $contactIds = [(int) $row['contact_id']];
     }
 
-    foreach ($contactIds as $contactId) {
-      openar_admit_member($contactId);
+    foreach ($watched as $groupName => $handler) {
+      if ($groupId === openar_group_id($groupName)) {
+        foreach ($contactIds as $contactId) {
+          $handler($contactId);
+        }
+        return;
+      }
     }
   }
   catch (\Throwable $e) {
@@ -654,6 +669,145 @@ function openar_admit_member(int $contactId): void {
   \Civi::log()->info('OpenAR onboarding: contact {cid} admitted as member {n}', [
     'cid' => $contactId,
     'n' => $number,
+  ]);
+}
+
+/**
+ * Decline an application: stamp the date, clear the review queue, tell them why.
+ *
+ * The email is held back unless a reason has been written, because a decline
+ * that gives no reason is worse than one that has not been sent yet. In that
+ * case the reviewers are told what to do instead. Safe to run more than once;
+ * only one decline email ever goes out.
+ */
+function openar_decline_applicant(int $contactId): void {
+  $contact = \Civi\Api4\Contact::get(FALSE)
+    ->addSelect('id', 'first_name', 'display_name', 'Membership.decline_reason', 'Membership.declined_date')
+    ->addWhere('id', '=', $contactId)
+    ->execute()->first();
+
+  if (!$contact) {
+    return;
+  }
+
+  openar_remove_from_group($contactId, OPENAR_REVIEW_GROUP);
+
+  if (empty($contact['Membership.declined_date'])) {
+    \Civi\Api4\Contact::update(FALSE)
+      ->addWhere('id', '=', $contactId)
+      ->addValue('Membership.declined_date', date('Y-m-d H:i:s'))
+      ->execute();
+  }
+
+  if (openar_already_declined($contactId)) {
+    return;
+  }
+
+  $reason = trim((string) ($contact['Membership.decline_reason'] ?? ''));
+
+  if ($reason === '') {
+    openar_report_missing_decline_reason($contact);
+    return;
+  }
+
+  openar_send_decline($contactId, $reason);
+}
+
+/** Send the decline. Returns false when there is nothing to send it to. */
+function openar_send_decline(int $contactId, string $reason): bool {
+  $contact = \Civi\Api4\Contact::get(FALSE)
+    ->addSelect('first_name')
+    ->addWhere('id', '=', $contactId)
+    ->execute()->first();
+
+  $email = \Civi\Api4\Email::get(FALSE)
+    ->addSelect('email')
+    ->addWhere('contact_id', '=', $contactId)
+    ->addOrderBy('is_primary', 'DESC')
+    ->execute()->first()['email'] ?? NULL;
+
+  if (!$email) {
+    \Civi::log()->warning('OpenAR onboarding: contact {cid} declined but has no email address', ['cid' => $contactId]);
+    return FALSE;
+  }
+
+  $template = \Civi\Api4\MessageTemplate::get(FALSE)
+    ->addSelect('id')
+    ->addWhere('msg_title', '=', OPENAR_DECLINE_TEMPLATE)
+    ->addWhere('is_active', '=', TRUE)
+    ->execute()->first();
+
+  if (!$template) {
+    \Civi::log()->error('OpenAR onboarding: decline template not found, nothing sent');
+    return FALSE;
+  }
+
+  [$fromName, $fromEmail] = \CRM_Core_BAO_Domain::getNameAndEmail();
+
+  \CRM_Core_BAO_MessageTemplate::sendTemplate([
+    'messageTemplateID' => $template['id'],
+    'from' => sprintf('%s <%s>', $fromName, $fromEmail),
+    'toEmail' => $email,
+    'contactId' => $contactId,
+    'tokenContext' => ['contactId' => $contactId],
+    'tplParams' => [
+      'firstName' => $contact['first_name'] ?? '',
+      'reason' => $reason,
+      'appealInbox' => OPENAR_APPEAL_INBOX,
+    ],
+  ]);
+
+  \Civi\Api4\Activity::create(FALSE)
+    ->addValue('activity_type_id:name', 'Email')
+    ->addValue('subject', OPENAR_DECLINE_ACTIVITY)
+    ->addValue('details', 'Reason sent to the applicant: ' . $reason)
+    ->addValue('status_id:name', 'Completed')
+    ->addValue('source_contact_id', (int) (\CRM_Core_BAO_Domain::getDomain()->contact_id ?? $contactId))
+    ->addValue('target_contact_id', [$contactId])
+    ->execute();
+
+  return TRUE;
+}
+
+/** Has a decline email already gone out to this contact? */
+function openar_already_declined(int $contactId): bool {
+  return (bool) \Civi\Api4\ActivityContact::get(FALSE)
+    ->addSelect('id')
+    ->addWhere('contact_id', '=', $contactId)
+    ->addWhere('record_type_id:name', '=', 'Activity Targets')
+    ->addWhere('activity_id.subject', '=', OPENAR_DECLINE_ACTIVITY)
+    ->execute()->count();
+}
+
+/** Tell the reviewers the decline is waiting on them, not on the applicant. */
+function openar_report_missing_decline_reason(array $contact): void {
+  $template = \Civi\Api4\MessageTemplate::get(FALSE)
+    ->addSelect('id')
+    ->addWhere('msg_title', '=', OPENAR_DECLINE_INCOMPLETE_TEMPLATE)
+    ->addWhere('is_active', '=', TRUE)
+    ->execute()->first();
+
+  if (!$template) {
+    \Civi::log()->error('OpenAR onboarding: contact {cid} declined with no reason, and no alert template exists', [
+      'cid' => $contact['id'],
+    ]);
+    return;
+  }
+
+  [$fromName, $fromEmail] = \CRM_Core_BAO_Domain::getNameAndEmail();
+
+  \CRM_Core_BAO_MessageTemplate::sendTemplate([
+    'messageTemplateID' => $template['id'],
+    'from' => sprintf('%s <%s>', $fromName, $fromEmail),
+    'toEmail' => OPENAR_REVIEW_INBOX,
+    'tplParams' => [
+      'displayName' => $contact['display_name'] ?? '',
+      'contactId' => $contact['id'],
+    ],
+  ]);
+
+  \Civi::log()->info('OpenAR onboarding: contact {cid} declined without a reason, applicant not written to', [
+    'cid' => $contact['id'],
   ]);
 }
 
