@@ -1,0 +1,19 @@
+# Secrets. Never commit these; they belong in 1Password and in the server
+# environment only.
+.env
+.env.*
+*.key
+*.pem
+secrets.php
+
+# Member data must never enter this repository.
+*.sql
+*.csv
+dumps/
+exports/
+logs/
+*.log
+
+# Dependencies and build output
+vendor/
+node_modules/
