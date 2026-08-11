@@ -168,3 +168,75 @@ The one operational gap left is resending a confirmation link to someone whose
 link lapsed, because unconfirmed applications are form submissions rather than
 contacts and CiviCRM has no screen for them. That is the first candidate for the
 admin toolbox on the roadmap.
+
+## Discord
+
+`openar-discord.php` joins an admitted member to the server through OAuth2. Two
+routes, both public:
+
+| Route | Purpose |
+|---|---|
+| `/connect` | The link in the welcome email, authenticated by CiviCRM checksum |
+| `/connect/callback` | Where Discord returns |
+
+**Credentials never live in this repository.** Five constants in `wp-config.php`
+switch it on. Until all five are defined the plugin is dormant: `/connect`
+renders a page pointing at membership@, and the welcome email omits the button
+rather than carrying a dead link. Adding the constants is the whole deployment
+step.
+
+```php
+define('OPENAR_DISCORD_CLIENT_ID',       '...');
+define('OPENAR_DISCORD_CLIENT_SECRET',   '...');
+define('OPENAR_DISCORD_BOT_TOKEN',       '...');
+define('OPENAR_DISCORD_GUILD_ID',        '...');
+define('OPENAR_DISCORD_MEMBER_ROLE_ID',  '...');
+```
+
+### Why OAuth rather than an invite link
+
+Discord has no endpoint resolving a username to a user, so a typed handle can
+never be validated. OAuth has Discord authenticate the person and hand back
+their real snowflake, and `PUT /guilds/{id}/members/{id}` takes `roles` and
+`nick` in the same call, so a member arrives already roled and named. No invites
+are minted, so there is no invite list to clean up and no ambiguity when several
+people join at once.
+
+### Things that bite
+
+**`PUT` returns 204 when the person is already in the guild, and silently
+ignores the roles and nick you sent.** Anyone who wandered in through a public
+invite would otherwise finish the flow roleless while the code reported success.
+On 204 the plugin reads their current roles, merges the Member role in, and
+`PATCH`es. Merging rather than replacing matters: a moderator who runs the flow
+must not lose their other roles.
+
+**The bot's role must sit above Member**, or role assignment fails with 403.
+
+**Nicknames cap at 32 characters**, so the real name is truncated rather than
+rejected.
+
+**The redirect URI is matched character for character.** WordPress's canonical
+redirect is disabled on these routes so it cannot append a trailing slash and
+break the match.
+
+**The callback must not fall behind Cloudflare Access.** The existing Access
+application covers `wp-admin` and `wp-login.php` only, and `/connect/callback`
+was checked as publicly reachable.
+
+### Security
+
+The link carries a CiviCRM checksum, never the member id, which is sequential
+and would otherwise let anyone walk the range and admit themselves. The checksum
+is re-validated on the return leg, and it is echoed through OAuth `state` inside
+a short-lived signed JWT, which also covers CSRF on the callback.
+
+A valid checksum proves identity, not entitlement, so the plugin separately
+requires current membership in the `members` group before admitting anyone.
+
+### Testing without credentials
+
+Every Discord request goes through `openar_discord_http()`, and the
+`openar_discord_http` filter stands in for it. `test-discord.php` exercises the
+201 path, the 204-then-PATCH path, role merging, nickname truncation, a 403, and
+the checksum guards, all without touching Discord.

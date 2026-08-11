@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: OpenAR Collective onboarding
- * Description: Sends long-lived confirmation links, then routes verified applications into the review queue.
- * Version:     1.1.0
+ * Description: Confirmation links, review queues, and publication for membership and Mission Supporter signups.
+ * Version:     1.2.0
  * License:     Apache-2.0
  *
  * Deployed as a must-use plugin at wp-content/mu-plugins/openar-onboarding.php,
@@ -32,11 +32,25 @@ const OPENAR_ALREADY_MEMBER_TEMPLATE = 'OpenAR - You are already a member';
 const OPENAR_ALREADY_APPLIED_TEMPLATE = 'OpenAR - Your application is already with us';
 
 /**
- * Where a member connects their Discord account. Empty until the Discord
- * application exists, in which case the already-a-member email tells them to
- * write to membership@ instead of carrying a link that goes nowhere.
+ * A member's personal Discord connect link, or an empty string.
+ *
+ * Empty until the Discord credentials are present in wp-config.php, in which
+ * case the emails tell the member to write to membership@ rather than carrying
+ * a link that goes nowhere. Adding those constants is all it takes to switch
+ * the link on; nothing here needs editing.
+ *
+ * The link carries a CiviCRM checksum rather than the member id, which is
+ * sequential and would let anyone walk the range and admit themselves.
  */
-const OPENAR_DISCORD_CONNECT_URL = '';
+function openar_discord_link_for(int $contactId): string {
+  if (!function_exists('openar_discord_configured') || !openar_discord_configured()) {
+    return '';
+  }
+
+  return openar_discord_connect_url()
+    . '?cid=' . $contactId
+    . '&cs=' . \CRM_Contact_BAO_Contact_Utils::generateChecksum($contactId);
+}
 
 /** One courtesy email per address per this many hours, so the form cannot be used to flood a member's inbox. */
 const OPENAR_REPEAT_NOTICE_HOURS = 24;
@@ -60,12 +74,43 @@ const OPENAR_APPEAL_INBOX = 'membership@openarcollective.org';
 
 /**
  * Forms whose confirmation email this plugin sends. Each must have
- * manual_processing on and allow_verification_by_email off, or the applicant
- * gets two emails: Afform's ten-minute one and ours.
+ * manual_processing on and allow_verification_by_email off, or the person gets
+ * two emails: Afform's ten-minute one and ours.
+ *
+ * The address is not in the same place on both forms. The membership form
+ * collects it as an Email join on the contact; the Statement of Support keeps
+ * the signer's address as a custom field on the organization, because the
+ * signer is recorded rather than created as a contact of their own. Hence a
+ * list of keys per form rather than one shared guess.
  */
-const OPENAR_VERIFIED_FORMS = [
-  'afformMembershipApplication',
+const OPENAR_FORMS = [
+  'afformMembershipApplication' => [
+    'kind' => 'membership',
+    'email_keys' => ['email'],
+    'name_keys' => ['first_name'],
+    'confirm_template' => 'OpenAR - Confirm your email address',
+  ],
+  'afformSupporterStatement' => [
+    'kind' => 'supporter',
+    'email_keys' => ['MissionSupporter.signer_email'],
+    'name_keys' => ['MissionSupporter.signer_name'],
+    'confirm_template' => 'OpenAR - Confirm your Statement of Support',
+  ],
 ];
+
+const OPENAR_SUPPORTER_SOURCE = 'Mission Supporter statement';
+const OPENAR_SUPPORTERS_PENDING_GROUP = 'supporters_pending';
+const OPENAR_SUPPORTERS_PUBLISHED_GROUP = 'supporters_published';
+const OPENAR_SUPPORTER_REVIEW_TEMPLATE = 'OpenAR - New Statement of Support for review';
+const OPENAR_SUPPORTER_LISTED_TEMPLATE = 'OpenAR - Your organization is now listed';
+const OPENAR_SUPPORTER_LISTED_ACTIVITY = 'Mission Supporter listing confirmed';
+
+/** The Statement version a signature is bound to. Bump when the Statement changes. */
+const OPENAR_STATEMENT_VERSION = '1.2';
+
+function openar_form_config(string $formName): ?array {
+  return OPENAR_FORMS[$formName] ?? NULL;
+}
 
 add_action('civicrm_postCommit', 'openar_onboarding_post_commit', 10, 4);
 
@@ -111,27 +156,32 @@ function openar_handle_new_submission(int $submissionId): void {
   if (!$submission || $submission['status_id:name'] !== 'Pending') {
     return;
   }
-  if (!in_array($submission['afform_name'], OPENAR_VERIFIED_FORMS, TRUE)) {
+
+  $config = openar_form_config($submission['afform_name']);
+  if (!$config) {
     return;
   }
 
   $data = openar_submission_data($submission);
-  $email = openar_find_value($data, 'email');
+  $email = openar_find_value($data, $config['email_keys']);
   if (!$email) {
     \Civi::log()->warning('OpenAR onboarding: submission {id} has no email address, no link sent', ['id' => $submissionId]);
     return;
   }
 
-  // Someone we already know does not need a confirmation link, and in the case
-  // of an existing member must not get a second contact record.
-  $existing = openar_lookup_by_email($email);
-  if ($existing && $existing['state'] !== 'known') {
-    openar_answer_repeat_applicant($existing, openar_find_value($data, 'first_name') ?? '');
-    \Civi\Api4\AfformSubmission::update(FALSE)
-      ->addWhere('id', '=', $submissionId)
-      ->addValue('status_id:name', 'Rejected')
-      ->execute();
-    return;
+  // Only the membership form can collide with an existing contact this way. A
+  // signer is recorded on the organization rather than created as a contact, so
+  // there is no member record for their address to match.
+  if ($config['kind'] === 'membership') {
+    $existing = openar_lookup_by_email($email);
+    if ($existing && $existing['state'] !== 'known') {
+      openar_answer_repeat_applicant($existing, openar_find_value($data, $config['name_keys']) ?? '');
+      \Civi\Api4\AfformSubmission::update(FALSE)
+        ->addWhere('id', '=', $submissionId)
+        ->addValue('status_id:name', 'Rejected')
+        ->execute();
+      return;
+    }
   }
 
   // A resubmission supersedes the earlier attempt, so only the newest link is
@@ -246,12 +296,7 @@ function openar_answer_repeat_applicant(array $existing, string $typedFirstName)
     return;
   }
 
-  $discordUrl = '';
-  if (OPENAR_DISCORD_CONNECT_URL !== '') {
-    $discordUrl = OPENAR_DISCORD_CONNECT_URL
-      . '?cid=' . $contactId
-      . '&cs=' . \CRM_Contact_BAO_Contact_Utils::generateChecksum($contactId);
-  }
+  $discordUrl = openar_discord_link_for($contactId);
 
   [$fromName, $fromEmail] = \CRM_Core_BAO_Domain::getNameAndEmail();
 
@@ -318,7 +363,7 @@ function openar_record_repeat_notice(int $contactId, string $state): void {
  */
 function openar_send_verification_link(int $submissionId): bool {
   $submission = \Civi\Api4\AfformSubmission::get(FALSE)
-    ->addSelect('id', 'status_id:name', 'data')
+    ->addSelect('id', 'afform_name', 'status_id:name', 'data')
     ->addWhere('id', '=', $submissionId)
     ->execute()->first();
 
@@ -327,20 +372,25 @@ function openar_send_verification_link(int $submissionId): bool {
     return FALSE;
   }
 
+  $config = openar_form_config($submission['afform_name']);
+  if (!$config) {
+    return FALSE;
+  }
+
   $data = openar_submission_data($submission);
-  $email = openar_find_value($data, 'email');
+  $email = openar_find_value($data, $config['email_keys']);
   if (!$email) {
     return FALSE;
   }
 
   $template = \Civi\Api4\MessageTemplate::get(FALSE)
     ->addSelect('id')
-    ->addWhere('msg_title', '=', OPENAR_VERIFY_TEMPLATE)
+    ->addWhere('msg_title', '=', $config['confirm_template'])
     ->addWhere('is_active', '=', TRUE)
     ->execute()->first();
 
   if (!$template) {
-    \Civi::log()->error('OpenAR onboarding: template "' . OPENAR_VERIFY_TEMPLATE . '" not found, no link sent');
+    \Civi::log()->error('OpenAR onboarding: template "' . $config['confirm_template'] . '" not found, no link sent');
     return FALSE;
   }
 
@@ -364,7 +414,7 @@ function openar_send_verification_link(int $submissionId): bool {
     'toEmail' => $email,
     'tplParams' => [
       'verifyUrl' => $url,
-      'firstName' => openar_find_value($data, 'first_name') ?? '',
+      'firstName' => openar_first_name(openar_find_value($data, $config['name_keys'])),
       'expiryDays' => OPENAR_VERIFY_LIFETIME_DAYS,
     ],
   ]);
@@ -381,8 +431,9 @@ function openar_supersede_earlier_submissions(string $formName, int $keepId, str
     ->addWhere('id', '<', $keepId)
     ->execute();
 
+  $config = openar_form_config($formName);
   foreach ($earlier as $old) {
-    $oldEmail = openar_find_value(openar_submission_data($old), 'email');
+    $oldEmail = openar_find_value(openar_submission_data($old), $config['email_keys'] ?? ['email']);
     if ($oldEmail && strcasecmp($oldEmail, $email) === 0) {
       \Civi\Api4\AfformSubmission::update(FALSE)
         ->addWhere('id', '=', $old['id'])
@@ -414,12 +465,19 @@ function openar_handle_processed_submission(int $submissionId): void {
   if (!$submission || $submission['status_id:name'] !== 'Processed') {
     return;
   }
-  if (!in_array($submission['afform_name'], OPENAR_VERIFIED_FORMS, TRUE)) {
+
+  $config = openar_form_config($submission['afform_name']);
+  if (!$config) {
     return;
   }
 
   foreach (openar_submission_entity_ids(openar_submission_data($submission)) as $contactId) {
-    openar_handle_new_contact($contactId);
+    if ($config['kind'] === 'supporter') {
+      openar_handle_new_supporter($contactId);
+    }
+    else {
+      openar_handle_new_contact($contactId);
+    }
   }
 }
 
@@ -440,6 +498,190 @@ function openar_submission_entity_ids(array $data): array {
     }
   }
   return array_values(array_unique($ids));
+}
+
+/* -------------------------------------------------------------------------
+ * Mission Supporter path.
+ *
+ * The shape mirrors membership: confirm the address, queue for a person,
+ * publish on approval. The differences are that the signer is recorded on the
+ * organization rather than created as a contact, and that publishing is what
+ * puts the organization on a public web page, so the review step carries more
+ * weight than it does for an individual.
+ * ---------------------------------------------------------------------- */
+
+/** A Statement of Support was confirmed. Queue the organization for review. */
+function openar_handle_new_supporter(int $contactId): void {
+  $org = \Civi\Api4\Contact::get(FALSE)
+    ->addSelect('id', 'display_name', 'organization_name', 'source',
+      'MissionSupporter.signer_email', 'MissionSupporter.statement_version')
+    ->addWhere('id', '=', $contactId)
+    ->execute()->first();
+
+  if (!$org || ($org['source'] ?? '') !== OPENAR_SUPPORTER_SOURCE) {
+    return;
+  }
+
+  // Which Statement they signed has to be stored per record, because a later
+  // version cannot be inferred backwards onto an existing signature.
+  if (empty($org['MissionSupporter.statement_version'])) {
+    \Civi\Api4\Contact::update(FALSE)
+      ->addWhere('id', '=', $contactId)
+      ->addValue('MissionSupporter.statement_version', OPENAR_STATEMENT_VERSION)
+      ->addValue('MissionSupporter.signed_date', date('Y-m-d H:i:s'))
+      ->execute();
+  }
+
+  openar_add_to_group($contactId, OPENAR_SUPPORTERS_PENDING_GROUP);
+  openar_notify_supporter_reviewers($contactId, openar_find_supporter_duplicates($contactId));
+}
+
+/**
+ * Other organizations already signed up under a comparable name.
+ *
+ * Matched on a squashed name because "Acme Inc" and "Acme, Inc." are the same
+ * organization signing twice. Advisory only: it warns a reviewer rather than
+ * blocking, since two genuinely different organizations can have similar names.
+ */
+function openar_find_supporter_duplicates(int $contactId): array {
+  $me = \Civi\Api4\Contact::get(FALSE)
+    ->addSelect('organization_name')
+    ->addWhere('id', '=', $contactId)
+    ->execute()->first();
+
+  $squash = static fn(string $s): string => preg_replace('/[^a-z0-9]/', '', strtolower($s)) ?? '';
+  $mine = $squash((string) ($me['organization_name'] ?? ''));
+  if ($mine === '') {
+    return [];
+  }
+
+  $found = [];
+  foreach (\Civi\Api4\Contact::get(FALSE)
+    ->addSelect('id', 'organization_name', 'display_name')
+    ->addWhere('contact_type', '=', 'Organization')
+    ->addWhere('id', '!=', $contactId)
+    ->addWhere('is_deleted', '=', FALSE)
+    ->execute() as $other) {
+    if ($squash((string) ($other['organization_name'] ?? '')) === $mine) {
+      $found[(int) $other['id']] = $other['display_name'];
+    }
+  }
+
+  return $found;
+}
+
+function openar_notify_supporter_reviewers(int $contactId, array $duplicates = []): void {
+  $template = \Civi\Api4\MessageTemplate::get(FALSE)
+    ->addSelect('id')
+    ->addWhere('msg_title', '=', OPENAR_SUPPORTER_REVIEW_TEMPLATE)
+    ->addWhere('is_active', '=', TRUE)
+    ->execute()->first();
+
+  if (!$template) {
+    \Civi::log()->warning('OpenAR onboarding: supporter review template not found, no notification sent');
+    return;
+  }
+
+  $warningText = '';
+  $warningHtml = '';
+  if ($duplicates) {
+    $lines = [];
+    foreach ($duplicates as $id => $name) {
+      $lines[] = sprintf('contact %d (%s)', $id, $name);
+    }
+    $joined = implode(', ', $lines);
+    $warningText = "\nAlready on file: an organization with the same name is recorded as " . $joined . ".\n";
+    $warningHtml = '<p style="padding:10px 14px;border-left:3px solid #e8a020;background:#fdf6e7;">'
+      . '<strong>Already on file.</strong> An organization with the same name is recorded as '
+      . htmlspecialchars($joined) . '.</p>';
+  }
+
+  [$fromName, $fromEmail] = \CRM_Core_BAO_Domain::getNameAndEmail();
+
+  \CRM_Core_BAO_MessageTemplate::sendTemplate([
+    'messageTemplateID' => $template['id'],
+    'from' => sprintf('%s <%s>', $fromName, $fromEmail),
+    'toEmail' => OPENAR_REVIEW_INBOX,
+    'contactId' => $contactId,
+    'tokenContext' => ['contactId' => $contactId],
+    'tplParams' => [
+      'duplicateWarningText' => $warningText,
+      'duplicateWarningHtml' => $warningHtml,
+    ],
+  ]);
+}
+
+/**
+ * Approved. The organization goes on the public roster.
+ *
+ * Publishing is the only step here that reaches openarcollective.org, so it is
+ * the point at which the signer is told, and the point the roster sync reads.
+ */
+function openar_publish_supporter(int $contactId): void {
+  $org = \Civi\Api4\Contact::get(FALSE)
+    ->addSelect('id', 'display_name', 'organization_name', 'contact_type',
+      'MissionSupporter.signer_email', 'MissionSupporter.signer_name', 'MissionSupporter.trade_name')
+    ->addWhere('id', '=', $contactId)
+    ->execute()->first();
+
+  if (!$org || $org['contact_type'] !== 'Organization') {
+    return;
+  }
+
+  openar_remove_from_group($contactId, OPENAR_SUPPORTERS_PENDING_GROUP);
+
+  if (openar_supporter_already_told($contactId)) {
+    return;
+  }
+
+  $email = trim((string) ($org['MissionSupporter.signer_email'] ?? ''));
+  if ($email === '') {
+    \Civi::log()->warning('OpenAR onboarding: supporter {cid} published with no signer address', ['cid' => $contactId]);
+    return;
+  }
+
+  $template = \Civi\Api4\MessageTemplate::get(FALSE)
+    ->addSelect('id')
+    ->addWhere('msg_title', '=', OPENAR_SUPPORTER_LISTED_TEMPLATE)
+    ->addWhere('is_active', '=', TRUE)
+    ->execute()->first();
+
+  if (!$template) {
+    \Civi::log()->error('OpenAR onboarding: supporter listed template not found');
+    return;
+  }
+
+  [$fromName, $fromEmail] = \CRM_Core_BAO_Domain::getNameAndEmail();
+
+  \CRM_Core_BAO_MessageTemplate::sendTemplate([
+    'messageTemplateID' => $template['id'],
+    'from' => sprintf('%s <%s>', $fromName, $fromEmail),
+    'toEmail' => $email,
+    'contactId' => $contactId,
+    'tokenContext' => ['contactId' => $contactId],
+    'tplParams' => [
+      'firstName' => openar_first_name($org['MissionSupporter.signer_name'] ?? ''),
+      'organizationName' => trim((string) ($org['MissionSupporter.trade_name'] ?? ''))
+        ?: (string) $org['organization_name'],
+    ],
+  ]);
+
+  \Civi\Api4\Activity::create(FALSE)
+    ->addValue('activity_type_id:name', 'Email')
+    ->addValue('subject', OPENAR_SUPPORTER_LISTED_ACTIVITY)
+    ->addValue('status_id:name', 'Completed')
+    ->addValue('source_contact_id', (int) (\CRM_Core_BAO_Domain::getDomain()->contact_id ?? $contactId))
+    ->addValue('target_contact_id', [$contactId])
+    ->execute();
+}
+
+function openar_supporter_already_told(int $contactId): bool {
+  return (bool) \Civi\Api4\ActivityContact::get(FALSE)
+    ->addSelect('id')
+    ->addWhere('contact_id', '=', $contactId)
+    ->addWhere('record_type_id:name', '=', 'Activity Targets')
+    ->addWhere('activity_id.subject', '=', OPENAR_SUPPORTER_LISTED_ACTIVITY)
+    ->execute()->count();
 }
 
 /** Queue one confirmed applicant for review. */
@@ -514,31 +756,7 @@ function openar_note_duplicates(int $contactId, array $duplicates): void {
 
 /** Add the applicant to the review queue. Safe to call more than once. */
 function openar_add_to_review_queue(int $contactId): void {
-  $group = \Civi\Api4\Group::get(FALSE)
-    ->addSelect('id')
-    ->addWhere('name', '=', OPENAR_REVIEW_GROUP)
-    ->execute()->first();
-
-  if (!$group) {
-    \Civi::log()->warning('OpenAR onboarding: group ' . OPENAR_REVIEW_GROUP . ' not found');
-    return;
-  }
-
-  $already = \Civi\Api4\GroupContact::get(FALSE)
-    ->addWhere('contact_id', '=', $contactId)
-    ->addWhere('group_id', '=', $group['id'])
-    ->addWhere('status', '=', 'Added')
-    ->execute()->count();
-
-  if ($already) {
-    return;
-  }
-
-  \Civi\Api4\GroupContact::create(FALSE)
-    ->addValue('contact_id', $contactId)
-    ->addValue('group_id', $group['id'])
-    ->addValue('status', 'Added')
-    ->execute();
+  openar_add_to_group($contactId, OPENAR_REVIEW_GROUP);
 }
 
 /** Tell the reviewers an application is waiting. */
@@ -606,6 +824,7 @@ function openar_onboarding_group_commit(string $op, string $objectName, $objectI
     $watched = [
       OPENAR_MEMBERS_GROUP => 'openar_admit_member',
       OPENAR_DECLINED_GROUP => 'openar_decline_applicant',
+      OPENAR_SUPPORTERS_PUBLISHED_GROUP => 'openar_publish_supporter',
     ];
 
     $groupId = NULL;
@@ -976,12 +1195,7 @@ function openar_send_welcome(int $contactId, int $number): void {
     return;
   }
 
-  $discordUrl = '';
-  if (OPENAR_DISCORD_CONNECT_URL !== '') {
-    $discordUrl = OPENAR_DISCORD_CONNECT_URL
-      . '?cid=' . $contactId
-      . '&cs=' . \CRM_Contact_BAO_Contact_Utils::generateChecksum($contactId);
-  }
+  $discordUrl = openar_discord_link_for($contactId);
 
   [$fromName, $fromEmail] = \CRM_Core_BAO_Domain::getNameAndEmail();
 
@@ -1006,6 +1220,30 @@ function openar_group_id(string $name): ?int {
     ->execute()->first();
 
   return $group ? (int) $group['id'] : NULL;
+}
+
+function openar_add_to_group(int $contactId, string $groupName): void {
+  $groupId = openar_group_id($groupName);
+  if (!$groupId) {
+    \Civi::log()->warning('OpenAR onboarding: group ' . $groupName . ' not found');
+    return;
+  }
+
+  $already = \Civi\Api4\GroupContact::get(FALSE)
+    ->addWhere('contact_id', '=', $contactId)
+    ->addWhere('group_id', '=', $groupId)
+    ->addWhere('status', '=', 'Added')
+    ->execute()->count();
+
+  if ($already) {
+    return;
+  }
+
+  \Civi\Api4\GroupContact::create(FALSE)
+    ->addValue('contact_id', $contactId)
+    ->addValue('group_id', $groupId)
+    ->addValue('status', 'Added')
+    ->execute();
 }
 
 function openar_remove_from_group(int $contactId, string $groupName): void {
@@ -1039,17 +1277,36 @@ function openar_submission_data(array $submission): array {
  * email arrives as a join. Walking the tree keeps this working for the Mission
  * Supporter form without teaching it that form's layout.
  */
-function openar_find_value(array $data, string $key): ?string {
+function openar_find_value(array $data, $keys): ?string {
+  foreach ((array) $keys as $key) {
+    $found = openar_search_tree($data, $key);
+    if ($found !== NULL) {
+      return $found;
+    }
+  }
+  return NULL;
+}
+
+function openar_search_tree(array $data, string $key): ?string {
   foreach ($data as $k => $value) {
-    if ($k === $key && is_scalar($value) && (string) $value !== '') {
-      return (string) $value;
+    if ($k === $key && is_scalar($value) && trim((string) $value) !== '') {
+      return trim((string) $value);
     }
     if (is_array($value)) {
-      $found = openar_find_value($value, $key);
+      $found = openar_search_tree($value, $key);
       if ($found !== NULL) {
         return $found;
       }
     }
   }
   return NULL;
+}
+
+/** "Jane Smith" greets as "Jane". A membership form already gives a first name. */
+function openar_first_name(?string $name): string {
+  $name = trim((string) $name);
+  if ($name === '') {
+    return '';
+  }
+  return strtok($name, ' ') ?: $name;
 }
