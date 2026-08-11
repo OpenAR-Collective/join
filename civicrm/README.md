@@ -18,6 +18,8 @@ sudo -u www-data wp --path=/var/www/openarcollective.org eval-file <script>.php
 | `confirm-email.php` | Superseded by `verify-email.php`, kept for history |
 | `review-template.php` | Reviewer notification template |
 | `repeat-applicant-templates.php` | Emails for someone applying with an address already on file |
+| `welcome-template.php` | Welcome email sent on admission |
+| `reset-applicant.php` | Purges one address so onboarding can be walked again |
 | `fix-lang.php` | Populates `languageLimit` (see note) |
 
 ## Four things that are easy to get wrong
@@ -75,3 +77,44 @@ member, and their member number. The Foundation does not publish a list of
 members, so the page response is identical in every case and the answer goes only
 to the address that was typed. One courtesy email per address per 24 hours, so
 the form cannot be used to flood a member's inbox.
+
+## Member numbers
+
+Approval is adding someone to the `members` group. The plugin reacts by issuing
+a number, taking them out of the review queue, and sending the welcome email.
+
+Two rules decide the number:
+
+1. **A contact that already has one keeps it.** Approving twice never renumbers
+   anyone and never sends a second welcome.
+2. **The next number is one above the highest on record**, read from the custom
+   value table rather than from a counter.
+
+Rule 2 is what makes repeated testing possible. CiviCRM keeps the custom values
+of a *trashed* contact, so an ordinary withdrawal never lets a number be handed
+out twice. Only a *purge* removes them, and a purge is what
+`reset-applicant.php` does. So walking through the whole process with your own
+address as many times as you like costs nothing, as long as you reset between
+runs:
+
+```bash
+sudo -u www-data wp --path=/var/www/openarcollective.org eval-file reset-applicant.php you@example.org
+```
+
+Called with no address it reports the members on record and the next number, and
+changes nothing.
+
+Assignment is wrapped in a CiviCRM lock, so two approvals in the same moment
+cannot read the same maximum and issue the same number.
+
+One caveat: because approval is group membership, a bulk add to `members` admits
+everyone in the selection and emails them all. That is the correct reading of the
+gesture, but it is not undoable.
+
+## GroupContact hooks come in two shapes
+
+`CRM_Contact_BAO_GroupContact` fires `post($op, 'GroupContact', $groupId,
+$contactIds)`, where the object id is the *group* and the ref is a list of
+contact ids. API4 writes go through the DAO and pass the GroupContact row
+instead. Both occur here, the first from the CiviCRM screens and the second from
+this plugin's own code, so the handler detects which it was given.

@@ -42,6 +42,8 @@ const OPENAR_DISCORD_CONNECT_URL = '';
 const OPENAR_REPEAT_NOTICE_HOURS = 24;
 const OPENAR_REPEAT_ACTIVITY = 'Membership application received from an address already on file';
 
+const OPENAR_WELCOME_TEMPLATE = 'OpenAR - Welcome to the Collective';
+
 /**
  * Forms whose confirmation email this plugin sends. Each must have
  * manual_processing on and allow_verification_by_email off, or the applicant
@@ -566,6 +568,242 @@ function openar_notify_reviewers(int $contactId, array $duplicates = []): void {
       'duplicateWarningHtml' => $warningHtml,
     ],
   ]);
+}
+
+/* -------------------------------------------------------------------------
+ * Stage 3: admitted. Adding someone to the members group is the approval.
+ * ---------------------------------------------------------------------- */
+
+add_action('civicrm_postCommit', 'openar_onboarding_group_commit', 10, 4);
+
+/**
+ * CRM_Contact_BAO_GroupContact passes the *group* id as $objectId and a list of
+ * contact ids as $objectRef, which is not the usual shape. API4 writes go
+ * through the DAO instead and pass the GroupContact row. Both happen in
+ * practice, the first from the CiviCRM screens and the second from our own code,
+ * so both are handled here.
+ */
+function openar_onboarding_group_commit(string $op, string $objectName, $objectId, &$objectRef): void {
+  if ($objectName !== 'GroupContact' || !in_array($op, ['create', 'edit'], TRUE)) {
+    return;
+  }
+
+  try {
+    $membersGroupId = openar_group_id(OPENAR_MEMBERS_GROUP);
+    if (!$membersGroupId) {
+      return;
+    }
+
+    $contactIds = [];
+
+    if (is_array($objectRef) && $objectRef && is_numeric(reset($objectRef))) {
+      // BAO shape: $objectId is the group, $objectRef the contacts.
+      if ((int) $objectId !== $membersGroupId) {
+        return;
+      }
+      $contactIds = array_map('intval', array_values($objectRef));
+    }
+    else {
+      // DAO shape: $objectId is the GroupContact row.
+      $row = \Civi\Api4\GroupContact::get(FALSE)
+        ->addSelect('contact_id', 'group_id', 'status')
+        ->addWhere('id', '=', (int) $objectId)
+        ->execute()->first();
+      if (!$row || (int) $row['group_id'] !== $membersGroupId || $row['status'] !== 'Added') {
+        return;
+      }
+      $contactIds = [(int) $row['contact_id']];
+    }
+
+    foreach ($contactIds as $contactId) {
+      openar_admit_member($contactId);
+    }
+  }
+  catch (\Throwable $e) {
+    \Civi::log()->error('OpenAR onboarding: admitting from group {gid} failed: {msg}', [
+      'gid' => $objectId,
+      'msg' => $e->getMessage(),
+    ]);
+  }
+}
+
+/**
+ * Give a new member their number, take them out of the review queue, welcome them.
+ *
+ * Safe to run again on someone already admitted: the number is only assigned
+ * once and the welcome only goes out with it.
+ */
+function openar_admit_member(int $contactId): void {
+  $current = \Civi\Api4\Contact::get(FALSE)
+    ->addSelect('id', 'Membership.member_number')
+    ->addWhere('id', '=', $contactId)
+    ->execute()->first();
+
+  if (!$current) {
+    return;
+  }
+
+  if (!empty($current['Membership.member_number'])) {
+    return;
+  }
+
+  $number = openar_assign_member_number($contactId);
+  openar_remove_from_group($contactId, OPENAR_REVIEW_GROUP);
+  openar_send_welcome($contactId, $number);
+
+  \Civi::log()->info('OpenAR onboarding: contact {cid} admitted as member {n}', [
+    'cid' => $contactId,
+    'n' => $number,
+  ]);
+}
+
+/**
+ * The next member number.
+ *
+ * Deliberately derived from the numbers actually on record rather than from a
+ * counter that only climbs. Purging a contact frees its number again, which is
+ * what makes it possible to walk through onboarding repeatedly during testing
+ * without burning a number on every run. Merely trashing a contact does not
+ * free the number, because CiviCRM keeps the custom values of a trashed contact,
+ * so an ordinary withdrawal never lets a number be handed out twice.
+ */
+function openar_next_member_number(): int {
+  [$table, $column] = openar_member_number_column();
+
+  // Table and column names come from CiviCRM's own metadata, not from input.
+  $max = (int) \CRM_Core_DAO::singleValueQuery(
+    "SELECT MAX(CAST(`{$column}` AS UNSIGNED)) FROM `{$table}`"
+  );
+
+  return max($max, 0) + 1;
+}
+
+/** Assign a member number, once. Returns the existing one if there is one. */
+function openar_assign_member_number(int $contactId): int {
+  $existing = \Civi\Api4\Contact::get(FALSE)
+    ->addSelect('Membership.member_number')
+    ->addWhere('id', '=', $contactId)
+    ->execute()->first()['Membership.member_number'] ?? NULL;
+
+  if (!empty($existing)) {
+    return (int) $existing;
+  }
+
+  // Two approvals at the same moment would otherwise be able to read the same
+  // maximum and issue the same number.
+  $lock = \Civi::lockManager()->acquire('data.openar.membernumber');
+  try {
+    $existing = \Civi\Api4\Contact::get(FALSE)
+      ->addSelect('Membership.member_number')
+      ->addWhere('id', '=', $contactId)
+      ->execute()->first()['Membership.member_number'] ?? NULL;
+
+    if (!empty($existing)) {
+      return (int) $existing;
+    }
+
+    $number = openar_next_member_number();
+
+    \Civi\Api4\Contact::update(FALSE)
+      ->addWhere('id', '=', $contactId)
+      ->addValue('Membership.member_number', $number)
+      ->execute();
+
+    return $number;
+  }
+  finally {
+    if ($lock && $lock->isAcquired()) {
+      $lock->release();
+    }
+  }
+}
+
+/** Where the member number physically lives, looked up rather than hardcoded. */
+function openar_member_number_column(): array {
+  $field = \Civi\Api4\CustomField::get(FALSE)
+    ->addSelect('column_name', 'custom_group_id.table_name')
+    ->addWhere('custom_group_id.name', '=', 'Membership')
+    ->addWhere('name', '=', 'member_number')
+    ->execute()->first();
+
+  if (!$field) {
+    throw new \RuntimeException('Membership.member_number custom field not found');
+  }
+
+  return [$field['custom_group_id.table_name'], $field['column_name']];
+}
+
+function openar_send_welcome(int $contactId, int $number): void {
+  $template = \Civi\Api4\MessageTemplate::get(FALSE)
+    ->addSelect('id')
+    ->addWhere('msg_title', '=', OPENAR_WELCOME_TEMPLATE)
+    ->addWhere('is_active', '=', TRUE)
+    ->execute()->first();
+
+  if (!$template) {
+    \Civi::log()->error('OpenAR onboarding: welcome template not found, member {n} not written to', ['n' => $number]);
+    return;
+  }
+
+  $contact = \Civi\Api4\Contact::get(FALSE)
+    ->addSelect('first_name')
+    ->addWhere('id', '=', $contactId)
+    ->execute()->first();
+
+  $email = \Civi\Api4\Email::get(FALSE)
+    ->addSelect('email')
+    ->addWhere('contact_id', '=', $contactId)
+    ->addOrderBy('is_primary', 'DESC')
+    ->execute()->first()['email'] ?? NULL;
+
+  if (!$email) {
+    \Civi::log()->warning('OpenAR onboarding: member {n} has no email address', ['n' => $number]);
+    return;
+  }
+
+  $discordUrl = '';
+  if (OPENAR_DISCORD_CONNECT_URL !== '') {
+    $discordUrl = OPENAR_DISCORD_CONNECT_URL
+      . '?cid=' . $contactId
+      . '&cs=' . \CRM_Contact_BAO_Contact_Utils::generateChecksum($contactId);
+  }
+
+  [$fromName, $fromEmail] = \CRM_Core_BAO_Domain::getNameAndEmail();
+
+  \CRM_Core_BAO_MessageTemplate::sendTemplate([
+    'messageTemplateID' => $template['id'],
+    'from' => sprintf('%s <%s>', $fromName, $fromEmail),
+    'toEmail' => $email,
+    'contactId' => $contactId,
+    'tokenContext' => ['contactId' => $contactId],
+    'tplParams' => [
+      'firstName' => $contact['first_name'] ?? '',
+      'memberNumber' => $number,
+      'discordUrl' => $discordUrl,
+    ],
+  ]);
+}
+
+function openar_group_id(string $name): ?int {
+  $group = \Civi\Api4\Group::get(FALSE)
+    ->addSelect('id')
+    ->addWhere('name', '=', $name)
+    ->execute()->first();
+
+  return $group ? (int) $group['id'] : NULL;
+}
+
+function openar_remove_from_group(int $contactId, string $groupName): void {
+  $groupId = openar_group_id($groupName);
+  if (!$groupId) {
+    return;
+  }
+
+  \Civi\Api4\GroupContact::update(FALSE)
+    ->addWhere('contact_id', '=', $contactId)
+    ->addWhere('group_id', '=', $groupId)
+    ->addValue('status', 'Removed')
+    ->execute();
 }
 
 /* ---------------------------------------------------------------------- */
