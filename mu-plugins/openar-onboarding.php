@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: OpenAR Collective onboarding
- * Description: Routes verified membership applications into the review queue and notifies the reviewers.
- * Version:     1.0.0
+ * Description: Sends long-lived confirmation links, then routes verified applications into the review queue.
+ * Version:     1.1.0
  * License:     Apache-2.0
  *
  * Deployed as a must-use plugin at wp-content/mu-plugins/openar-onboarding.php,
@@ -23,38 +23,181 @@ const OPENAR_REVIEW_GROUP = 'applicants_pending_review';
 const OPENAR_REVIEW_INBOX = 'membership@openarcollective.org';
 const OPENAR_REVIEW_TEMPLATE = 'OpenAR - New membership application for review';
 
-add_action('civicrm_postCommit', 'openar_onboarding_post_commit', 10, 4);
+const OPENAR_VERIFY_TEMPLATE = 'OpenAR - Confirm your email address';
+const OPENAR_VERIFY_LIFETIME_DAYS = 7;
 
 /**
- * A membership application only reaches this point after the applicant has
- * clicked the verification link, because the form runs in manual_processing
- * mode and writes nothing before then. Anything landing here is confirmed.
+ * Forms whose confirmation email this plugin sends. Each must have
+ * manual_processing on and allow_verification_by_email off, or the applicant
+ * gets two emails: Afform's ten-minute one and ours.
  */
+const OPENAR_VERIFIED_FORMS = [
+  'afformMembershipApplication',
+];
+
+add_action('civicrm_postCommit', 'openar_onboarding_post_commit', 10, 4);
+
 function openar_onboarding_post_commit(string $op, string $objectName, $objectId, &$objectRef): void {
-  if ($op !== 'create' || $objectName !== 'Individual' || empty($objectId)) {
+  if ($op !== 'create' || empty($objectId)) {
     return;
   }
 
-  // Never let onboarding bookkeeping break contact creation.
+  // Onboarding bookkeeping must never break the write that triggered it.
   try {
-    $contact = \Civi\Api4\Contact::get(FALSE)
-      ->addSelect('id', 'source', 'display_name')
-      ->addWhere('id', '=', (int) $objectId)
-      ->execute()->first();
-
-    if (!$contact || ($contact['source'] ?? '') !== OPENAR_APPLICATION_SOURCE) {
-      return;
+    if ($objectName === 'AfformSubmission') {
+      openar_handle_new_submission((int) $objectId);
     }
-
-    openar_add_to_review_queue((int) $contact['id']);
-    openar_notify_reviewers((int) $contact['id']);
+    elseif ($objectName === 'Individual') {
+      openar_handle_new_contact((int) $objectId);
+    }
   }
   catch (\Throwable $e) {
-    \Civi::log()->error('OpenAR onboarding failed for contact {cid}: {msg}', [
-      'cid' => $objectId,
+    \Civi::log()->error('OpenAR onboarding failed on {entity} {id}: {msg}', [
+      'entity' => $objectName,
+      'id' => $objectId,
       'msg' => $e->getMessage(),
     ]);
   }
+}
+
+/* -------------------------------------------------------------------------
+ * Stage 1: a form was submitted, so send the confirmation link.
+ *
+ * Afform stores the whole submission before emailing, and CRM_Afform_Page_Verify
+ * only needs a validly signed JWT carrying a submissionId. It does not check the
+ * scope claim, and it re-checks the submission status itself. So minting the
+ * token here rather than letting Afform do it costs nothing and lets us choose
+ * the lifetime; Afform hardcodes ten minutes in Civi\Afform\Tokens.
+ * ---------------------------------------------------------------------- */
+
+function openar_handle_new_submission(int $submissionId): void {
+  $submission = \Civi\Api4\AfformSubmission::get(FALSE)
+    ->addSelect('id', 'afform_name', 'status_id:name', 'data')
+    ->addWhere('id', '=', $submissionId)
+    ->execute()->first();
+
+  if (!$submission || $submission['status_id:name'] !== 'Pending') {
+    return;
+  }
+  if (!in_array($submission['afform_name'], OPENAR_VERIFIED_FORMS, TRUE)) {
+    return;
+  }
+
+  $data = openar_submission_data($submission);
+  $email = openar_find_value($data, 'email');
+  if (!$email) {
+    \Civi::log()->warning('OpenAR onboarding: submission {id} has no email address, no link sent', ['id' => $submissionId]);
+    return;
+  }
+
+  // A resubmission supersedes the earlier attempt, so only the newest link is
+  // live and there is one path to one contact.
+  openar_supersede_earlier_submissions($submission['afform_name'], $submissionId, $email);
+
+  openar_send_verification_link($submissionId);
+}
+
+/**
+ * Mint a confirmation link for a pending submission and email it.
+ * Also the resend path when someone lets a link lapse.
+ */
+function openar_send_verification_link(int $submissionId): bool {
+  $submission = \Civi\Api4\AfformSubmission::get(FALSE)
+    ->addSelect('id', 'status_id:name', 'data')
+    ->addWhere('id', '=', $submissionId)
+    ->execute()->first();
+
+  if (!$submission || $submission['status_id:name'] !== 'Pending') {
+    \Civi::log()->warning('OpenAR onboarding: submission {id} is not pending, no link sent', ['id' => $submissionId]);
+    return FALSE;
+  }
+
+  $data = openar_submission_data($submission);
+  $email = openar_find_value($data, 'email');
+  if (!$email) {
+    return FALSE;
+  }
+
+  $template = \Civi\Api4\MessageTemplate::get(FALSE)
+    ->addSelect('id')
+    ->addWhere('msg_title', '=', OPENAR_VERIFY_TEMPLATE)
+    ->addWhere('is_active', '=', TRUE)
+    ->execute()->first();
+
+  if (!$template) {
+    \Civi::log()->error('OpenAR onboarding: template "' . OPENAR_VERIFY_TEMPLATE . '" not found, no link sent');
+    return FALSE;
+  }
+
+  $token = \Civi::service('crypto.jwt')->encode([
+    'exp' => \CRM_Utils_Time::time() + (OPENAR_VERIFY_LIFETIME_DAYS * 24 * 60 * 60),
+    'scope' => 'afformVerifyEmail',
+    'submissionId' => $submissionId,
+  ]);
+
+  $url = \CRM_Utils_System::getNotifyUrl(
+    'civicrm/afform/submission/verify',
+    ['token' => $token],
+    TRUE, NULL, NULL, TRUE
+  );
+
+  [$fromName, $fromEmail] = \CRM_Core_BAO_Domain::getNameAndEmail();
+
+  \CRM_Core_BAO_MessageTemplate::sendTemplate([
+    'messageTemplateID' => $template['id'],
+    'from' => sprintf('%s <%s>', $fromName, $fromEmail),
+    'toEmail' => $email,
+    'tplParams' => [
+      'verifyUrl' => $url,
+      'firstName' => openar_find_value($data, 'first_name') ?? '',
+      'expiryDays' => OPENAR_VERIFY_LIFETIME_DAYS,
+    ],
+  ]);
+
+  return TRUE;
+}
+
+/** Mark this applicant's earlier unconfirmed attempts on the same form as superseded. */
+function openar_supersede_earlier_submissions(string $formName, int $keepId, string $email): void {
+  $earlier = \Civi\Api4\AfformSubmission::get(FALSE)
+    ->addSelect('id', 'data')
+    ->addWhere('afform_name', '=', $formName)
+    ->addWhere('status_id:name', '=', 'Pending')
+    ->addWhere('id', '<', $keepId)
+    ->execute();
+
+  foreach ($earlier as $old) {
+    $oldEmail = openar_find_value(openar_submission_data($old), 'email');
+    if ($oldEmail && strcasecmp($oldEmail, $email) === 0) {
+      \Civi\Api4\AfformSubmission::update(FALSE)
+        ->addWhere('id', '=', $old['id'])
+        ->addValue('status_id:name', 'Rejected')
+        ->execute();
+    }
+  }
+}
+
+/* -------------------------------------------------------------------------
+ * Stage 2: the link was clicked, so the contact now exists.
+ * ---------------------------------------------------------------------- */
+
+/**
+ * A membership application only reaches this point after the applicant has
+ * clicked the confirmation link, because the form runs in manual_processing
+ * mode and writes nothing before then. Anything landing here is confirmed.
+ */
+function openar_handle_new_contact(int $contactId): void {
+  $contact = \Civi\Api4\Contact::get(FALSE)
+    ->addSelect('id', 'source', 'display_name')
+    ->addWhere('id', '=', $contactId)
+    ->execute()->first();
+
+  if (!$contact || ($contact['source'] ?? '') !== OPENAR_APPLICATION_SOURCE) {
+    return;
+  }
+
+  openar_add_to_review_queue((int) $contact['id']);
+  openar_notify_reviewers((int) $contact['id']);
 }
 
 /** Add the applicant to the review queue. Safe to call more than once. */
@@ -108,4 +251,37 @@ function openar_notify_reviewers(int $contactId): void {
     'contactId' => $contactId,
     'tokenContext' => ['contactId' => $contactId],
   ]);
+}
+
+/* ---------------------------------------------------------------------- */
+
+/** Submission data is JSON in the database; API4 usually decodes it, but not always. */
+function openar_submission_data(array $submission): array {
+  $data = $submission['data'] ?? [];
+  if (is_string($data)) {
+    $data = json_decode($data, TRUE) ?: [];
+  }
+  return is_array($data) ? $data : [];
+}
+
+/**
+ * Find the first non-empty value for a key anywhere in a submission.
+ *
+ * The shape differs by form: contact fields sit under the entity name, while
+ * email arrives as a join. Walking the tree keeps this working for the Mission
+ * Supporter form without teaching it that form's layout.
+ */
+function openar_find_value(array $data, string $key): ?string {
+  foreach ($data as $k => $value) {
+    if ($k === $key && is_scalar($value) && (string) $value !== '') {
+      return (string) $value;
+    }
+    if (is_array($value)) {
+      $found = openar_find_value($value, $key);
+      if ($found !== NULL) {
+        return $found;
+      }
+    }
+  }
+  return NULL;
 }
