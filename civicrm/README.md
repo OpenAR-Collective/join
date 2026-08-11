@@ -19,6 +19,7 @@ sudo -u www-data wp --path=/var/www/openarcollective.org eval-file <script>.php
 | `review-template.php` | Reviewer notification template |
 | `repeat-applicant-templates.php` | Emails for someone applying with an address already on file |
 | `welcome-template.php` | Welcome email sent on admission |
+| `supporter-setup.php` | Mission Supporter emails, and the form's verification settings |
 | `decline-fields.php` | The decline reason and date fields |
 | `decline-templates.php` | Decline email, and the alert when no reason is recorded |
 | `send-decline.php` | Lists declines; sends one whose reason arrived late |
@@ -240,3 +241,33 @@ Every Discord request goes through `openar_discord_http()`, and the
 `openar_discord_http` filter stands in for it. `test-discord.php` exercises the
 201 path, the 204-then-PATCH path, role merging, nickname truncation, a 403, and
 the checksum guards, all without touching Discord.
+
+## Mission Supporter
+
+Same shape as membership: confirm the address, queue for a person, publish on
+approval. Three differences worth knowing.
+
+**The signer is recorded, not created.** There is no Individual contact for them;
+their name, title, and address are custom fields on the Organization. So the
+address the confirmation link goes to is `MissionSupporter.signer_email`, not an
+Email join, which is why `OPENAR_FORMS` carries a list of keys per form. Afform's
+own verification would never have fired on this form for the same reason: it only
+looks at Email joins.
+
+**Approving publishes.** Adding an organization to `supporters_published` puts it
+on a public page at openarcollective.org, so the review step carries more weight
+than it does for an individual member. The reviewer email says so plainly.
+
+**Publication is automatic after that.** The workflow in the website repo reads
+the published group hourly and commits the result, so a reviewer's approval
+reaches the roster with no further step, and removing an organization from the
+group takes it off the same way.
+
+### The form was live and unverified
+
+Until this was wired, `/sign` had `manual_processing` off and no verification at
+all, so anyone could sign the Statement of Support in any organization's name and
+it went straight into the contact records. The roster gate meant nothing reached
+the website without a person, but the database would have filled with unverified
+claims. `supporter-setup.php` turns manual processing on and verification off, in
+the same arrangement the membership form uses.
