@@ -130,9 +130,15 @@ function openar_admin_pending(): array {
     $expires = $submitted + ($lifetime * 86400);
     $daysLeft = (int) floor(($expires - time()) / 86400);
 
+    $supporter = ($s['afform_name'] === 'afformSupporterStatement');
+
     $rows[] = [
       'id' => (int) $s['id'],
-      'form' => $s['afform_name'] === 'afformSupporterStatement' ? 'Statement of Support' : 'Membership',
+      // Which path this belongs to, kept separate from the label. The two are
+      // counted apart on the Dashboard, and matching on display text to decide
+      // that is the kind of thing that breaks the day someone rewords a label.
+      'kind' => $supporter ? 'supporter' : 'membership',
+      'form' => $supporter ? 'Statement of Support' : 'Membership',
       'name' => $name,
       'email' => $email ?? '(none)',
       'submitted' => (string) $s['submission_date'],
@@ -441,6 +447,61 @@ function openar_admin_group_count(string $name): ?int {
   ])->count();
 }
 
+/** How many contacts have been issued a member number, whatever group they are in. */
+function openar_admin_numbered_members(): int {
+  return (int) civicrm_api4('Contact', 'get', [
+    'select' => ['row_count'],
+    'where' => [['Membership.member_number', 'IS NOT EMPTY'], ['is_deleted', '=', FALSE]],
+    'checkPermissions' => FALSE,
+  ])->count();
+}
+
+/**
+ * One row of the Dashboard widget: what it counts, what that means, where the
+ * work is done.
+ *
+ * The note under each label is the whole point of the widget. A bare number
+ * tells a new reviewer nothing about whether it is theirs to act on, and the
+ * two paths run far enough apart that "3 waiting" means different work
+ * depending on which one it belongs to.
+ */
+function openar_admin_dashboard_row(array $row, bool $last = FALSE): void {
+  $border = $last ? '' : 'border-bottom:1px solid #f0f0f1;';
+  $count = $row['count'];
+  $needed = ($count !== NULL && $count > 0);
+
+  // ACTION NEEDED only shouts when there is something to act on. A warning that
+  // is present every single day is read as decoration within a week.
+  $note = (string) $row['note'];
+  $flag = '';
+  if (str_starts_with($note, 'ACTION NEEDED:')) {
+    $note = trim(substr($note, strlen('ACTION NEEDED:')));
+    $flag = 'ACTION NEEDED:';
+  }
+  ?>
+  <li style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:6px 0;<?php echo $border; ?>">
+    <span>
+      <a href="<?php echo esc_url($row['url']); ?>"><?php echo esc_html($row['label']); ?></a>
+      <?php if (!empty($row['lapsed'])) : ?>
+        <span style="color:#a13b1e">&nbsp;&mdash; <?php echo (int) $row['lapsed']; ?> lapsed</span>
+      <?php endif; ?>
+      <br />
+      <span style="font-size:11px;line-height:1.5;color:#646970">
+        <?php if ($flag && $needed) : ?>
+          <strong style="color:#a13b1e"><?php echo esc_html($flag); ?></strong>
+        <?php elseif ($flag) : ?>
+          <?php echo esc_html($flag); ?>
+        <?php endif; ?>
+        <?php echo esc_html($note); ?>
+      </span>
+    </span>
+    <strong style="font-size:15px;<?php echo $needed && $flag ? 'color:#a13b1e' : ''; ?>">
+      <?php echo $count === NULL ? '&mdash;' : (int) $count; ?>
+    </strong>
+  </li>
+  <?php
+}
+
 function openar_admin_dashboard_render(): void {
   if (!function_exists('civi_wp')) {
     echo '<p>CiviCRM is not available.</p>';
@@ -448,14 +509,59 @@ function openar_admin_dashboard_render(): void {
   }
 
   $pending = openar_admin_pending();
-  $lapsed = count(array_filter($pending, fn($r) => !$r['live']));
+  $memberPending = array_filter($pending, fn($r) => $r['kind'] === 'membership');
+  $supporterPending = array_filter($pending, fn($r) => $r['kind'] === 'supporter');
 
-  $toReview = openar_admin_group_count('applicants_pending_review');
-  $supporters = openar_admin_group_count('supporters_pending');
-  $listed = openar_admin_group_count('supporters_published');
-  $members = openar_admin_group_count('members');
+  $lapsed = fn(array $rows) => count(array_filter($rows, fn($r) => !$r['live']));
 
   $screen = admin_url('tools.php?page=' . OPENAR_ADMIN_SLUG);
+  $group = fn(string $name) => openar_admin_civi_url('civicrm/group/search',
+    'reset=1&force=1&context=smog&gid=' . openar_admin_group_id($name));
+
+  $members = openar_admin_group_count('members');
+  $numbered = openar_admin_numbered_members();
+
+  $rows = [
+    [
+      'label' => 'Members awaiting confirmation',
+      'note' => 'email confirmation link not clicked',
+      'count' => count($memberPending),
+      'lapsed' => $lapsed($memberPending),
+      'url' => $screen,
+    ],
+    [
+      'label' => 'Member applications to review',
+      'note' => 'ACTION NEEDED: verify AR professional credentials',
+      'count' => openar_admin_group_count('applicants_pending_review'),
+      'url' => $group('applicants_pending_review'),
+    ],
+    [
+      'label' => 'Members',
+      'note' => 'individuals issued a member ID',
+      'count' => $members,
+      'url' => $group('members'),
+    ],
+    [
+      'label' => 'Mission Supporters awaiting confirmation',
+      'note' => 'email confirmation link not clicked',
+      'count' => count($supporterPending),
+      'lapsed' => $lapsed($supporterPending),
+      'url' => $screen,
+    ],
+    [
+      'label' => 'Mission Supporters to review',
+      'note' => 'ACTION NEEDED: verify company legitimacy',
+      'count' => openar_admin_group_count('supporters_pending'),
+      'url' => $group('supporters_pending'),
+    ],
+    [
+      'label' => 'Mission Supporters',
+      'note' => 'companies publicly listed as Mission Supporters',
+      'count' => openar_admin_group_count('supporters_published'),
+      'url' => $group('supporters_published'),
+    ],
+  ];
+
   $mailProblem = openar_admin_mail_problem();
   ?>
   <?php if ($mailProblem) : ?>
@@ -465,36 +571,30 @@ function openar_admin_dashboard_render(): void {
     </p>
   <?php endif; ?>
   <ul style="margin:0">
-    <li style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #f0f0f1">
-      <span><a href="<?php echo esc_url($screen); ?>">Waiting on confirmation</a>
-        <?php if ($lapsed) : ?>
-          <span style="color:#a13b1e">&nbsp;&mdash; <?php echo (int) $lapsed; ?> lapsed</span>
-        <?php endif; ?>
-      </span>
-      <strong><?php echo count($pending); ?></strong>
-    </li>
-    <li style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #f0f0f1">
-      <span><a href="<?php echo esc_url(openar_admin_civi_url('civicrm/group/search', 'reset=1&force=1&context=smog&gid=' . openar_admin_group_id('applicants_pending_review'))); ?>">Applications to review</a></span>
-      <strong><?php echo $toReview === NULL ? '&mdash;' : (int) $toReview; ?></strong>
-    </li>
-    <li style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #f0f0f1">
-      <span><a href="<?php echo esc_url(openar_admin_civi_url('civicrm/group/search', 'reset=1&force=1&context=smog&gid=' . openar_admin_group_id('supporters_pending'))); ?>">Supporters to review</a></span>
-      <strong><?php echo $supporters === NULL ? '&mdash;' : (int) $supporters; ?></strong>
-    </li>
-    <li style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #f0f0f1">
-      <span><a href="<?php echo esc_url(openar_admin_civi_url('civicrm/group/search', 'reset=1&force=1&context=smog&gid=' . openar_admin_group_id('supporters_published'))); ?>">Mission Supporters listed</a>
-        <span style="color:#646970">&nbsp;&mdash; on the public roster</span>
-      </span>
-      <strong><?php echo $listed === NULL ? '&mdash;' : (int) $listed; ?></strong>
-    </li>
-    <li style="display:flex;justify-content:space-between;padding:4px 0">
-      <span><a href="<?php echo esc_url(openar_admin_civi_url('civicrm/group/search', 'reset=1&force=1&context=smog&gid=' . openar_admin_group_id('members'))); ?>">Members</a></span>
-      <strong><?php echo $members === NULL ? '&mdash;' : (int) $members; ?></strong>
-    </li>
+    <?php foreach ($rows as $i => $row) : ?>
+      <?php openar_admin_dashboard_row($row, $i === count($rows) - 1); ?>
+    <?php endforeach; ?>
   </ul>
 
+  <?php if ($members !== NULL && $numbered > $members) : ?>
+    <p style="margin:10px 0 0;padding:8px 10px;background:#fcf9e8;border-left:4px solid #dba617;font-size:12px">
+      <?php printf(
+        /* Both halves can be 1, and "only 1 are in the group" reads like a bug
+           in the thing that is reporting a bug. */
+        esc_html($numbered === 1 ? '%d contact holds a member ID' : '%d contacts hold a member ID'),
+        (int) $numbered
+      ); ?>
+      <?php printf(
+        esc_html($members === 1 ? ' but only %d is in the members group.' : ' but only %d are in the members group.'),
+        (int) $members
+      ); ?>
+      Usually that means two records for the same person, which is fixed by
+      merging them.
+    </p>
+  <?php endif; ?>
+
   <?php if ($pending) : ?>
-    <p style="margin:10px 0 4px"><strong>Waiting on their confirmation email</strong></p>
+    <p style="margin:12px 0 4px"><strong>Waiting on their confirmation email</strong></p>
     <table style="width:100%;border-collapse:collapse">
       <?php foreach (array_slice($pending, 0, 5) as $r) : ?>
         <tr>
@@ -509,10 +609,8 @@ function openar_admin_dashboard_render(): void {
     <?php if (count($pending) > 5) : ?>
       <p style="margin:6px 0 0"><a href="<?php echo esc_url($screen); ?>">and <?php echo count($pending) - 5; ?> more</a></p>
     <?php endif; ?>
-  <?php else : ?>
-    <p style="margin:10px 0 0;color:#646970">Nobody is waiting on a confirmation email.</p>
   <?php endif; ?>
 
-  <p style="margin:10px 0 0"><a href="<?php echo esc_url($screen); ?>" class="button button-small">Open onboarding</a></p>
+  <p style="margin:12px 0 0"><a href="<?php echo esc_url($screen); ?>" class="button button-small">Open onboarding</a></p>
   <?php
 }

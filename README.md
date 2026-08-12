@@ -78,10 +78,22 @@ button to send a fresh one. It also links to the review queues, the members
 group, and the supporter groups, so the day-to-day work has one starting point.
 
 The same figures appear as a **Dashboard widget**, so they are seen on login
-rather than only when someone remembers to look. It shows counts for
-applications waiting on confirmation, applications to review, supporters to
-review, Mission Supporters listed on the public roster, and members, with the
-first few waiting applicants listed and anything lapsed marked in red.
+rather than only when someone remembers to look. It counts the two paths
+separately, because "3 waiting" means different work depending on which one it
+belongs to:
+
+| | |
+|---|---|
+| Members awaiting confirmation | email confirmation link not clicked |
+| Member applications to review | verify AR professional credentials |
+| Members | individuals issued a member ID |
+| Mission Supporters awaiting confirmation | email confirmation link not clicked |
+| Mission Supporters to review | verify company legitimacy |
+| Mission Supporters | companies publicly listed as Mission Supporters |
+
+The two review rows are marked **ACTION NEEDED** in red, but only while the
+count is above zero. A warning that is present every day is read as decoration
+within a week.
 
 Both screens carry a red warning when outbound email is not actually being
 delivered, which is the failure that hides best: everything appears to work and
