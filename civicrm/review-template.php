@@ -16,6 +16,16 @@ $title = 'OpenAR - New membership application for review';
 // theme's typography fights CiviCRM's own: mismatched fonts and backgrounds,
 // and a select box clipped so only its top half shows. The same screen in
 // wp-admin is styled by CiviCRM and looks right.
+// The review screen, not the CiviCRM record. It carries the same details and
+// an Approve button, so a decision is one click from this email rather than a
+// trip through CiviCRM's contact and group screens.
+//
+// It is a link to a screen and not a link that approves. A URL that admitted a
+// member on being fetched would be fired by every link scanner, safe-links
+// rewriter and mail gateway between here and the reviewer's inbox, and would
+// admit people nobody had looked at. The button on the screen posts.
+$review = 'https://join.openarcollective.org/wp-admin/tools.php?page=openar-onboarding'
+  . '&review={contact.id}#applicant-{contact.id}';
 $view = 'https://join.openarcollective.org/wp-admin/admin.php?page=CiviCRM&q=civicrm/contact/view&reset=1&cid={contact.id}';
 
 /**
@@ -53,7 +63,10 @@ Employer:   $employer
 Role:       {contact.job_title}
 LinkedIn:   {\$linkedinUrl|default:'not supplied'}
 
-Review the record:
+Approve or decline, on one screen:
+$review
+
+The full CiviCRM record, if you need it:
 $view
 
 The applicant has confirmed their email address, so the address is known good.
@@ -65,7 +78,11 @@ consider the employer's size, business model, or reputation.
 If something does not line up, ask before declining. A decline is issued by a
 director, states the reason, and is recorded on the contact.
 
-The OpenAR Collective
+--
+Sent automatically by the OpenAR onboarding workflow when the applicant
+confirmed their email address. Nobody typed it.
+
+The OpenAR Collective Bot
 TXT;
 
 $html = <<<HTML
@@ -79,7 +96,9 @@ $html = <<<HTML
   <tr><td><strong>LinkedIn</strong></td><td>{if \$linkedinUrl}<a href="{\$linkedinUrl}">{\$linkedinUrl}</a>{else}<em>not supplied</em>{/if}</td></tr>
 </table>
 
-<p><a href="$view">Review the record</a></p>
+<p><a href="$review" style="display:inline-block;padding:12px 22px;background:#e8a020;color:#161410;font-family:Arial,Helvetica,sans-serif;font-weight:600;text-decoration:none;border-radius:3px;">Review this application</a></p>
+
+<p style="font-size:13px;">That screen shows these details with an Approve button, and a box for the reason if you decline. The <a href="$view">full CiviCRM record</a> is there if you need it.</p>
 
 <p>The applicant has confirmed their email address, so the address is known good.
 What remains is confirming that the stated employer or affiliation is plausible.
@@ -90,7 +109,11 @@ employer's size, business model, or reputation.</p>
 <p>If something does not line up, ask before declining. A decline is issued by a
 director, states the reason, and is recorded on the contact.</p>
 
-<p>The OpenAR Collective</p>
+<p style="margin-top:26px;padding-top:14px;border-top:1px solid #e3ded3;font-size:12px;color:#5c564c;">
+Sent automatically by the OpenAR onboarding workflow when the applicant confirmed
+their email address. Nobody typed it.<br />
+<strong>The OpenAR Collective Bot</strong>
+</p>
 HTML;
 
 $vals = [

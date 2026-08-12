@@ -82,6 +82,121 @@ function openar_admin_mail_problem(): string {
   return '';
 }
 
+/**
+ * Applicants waiting on a person, with everything needed to decide.
+ *
+ * The reviewer email already carries these details. Repeating them here means a
+ * decision can be made from one screen instead of the email, a CiviCRM contact
+ * record, and a group edit screen.
+ */
+function openar_admin_review_queue(): array {
+  if (!function_exists('civi_wp')) {
+    return [];
+  }
+  civi_wp()->initialize();
+
+  $gid = openar_admin_group_id(defined('OPENAR_REVIEW_GROUP') ? OPENAR_REVIEW_GROUP : 'applicants_pending_review');
+  if (!$gid) {
+    return [];
+  }
+
+  $ids = [];
+  foreach (civicrm_api4('GroupContact', 'get', [
+    'select' => ['contact_id'],
+    'where' => [
+      ['group_id', '=', $gid],
+      ['status', '=', 'Added'],
+      ['contact_id.is_deleted', '=', FALSE],
+    ],
+    'checkPermissions' => FALSE,
+  ]) as $r) {
+    $ids[] = (int) $r['contact_id'];
+  }
+  if (!$ids) {
+    return [];
+  }
+
+  $rows = [];
+  foreach (civicrm_api4('Contact', 'get', [
+    'select' => [
+      'id', 'display_name', 'created_date',
+      'Membership.employer_affiliation', 'Membership.linkedin_url',
+      'Membership.email_confirmed_date', 'Membership.terms_version',
+      'Membership.application_notes',
+    ],
+    'where' => [['id', 'IN', $ids]],
+    'orderBy' => ['created_date' => 'ASC'],
+    'checkPermissions' => FALSE,
+  ]) as $c) {
+    $c['email'] = civicrm_api4('Email', 'get', [
+      'select' => ['email'],
+      'where' => [['contact_id', '=', $c['id']]],
+      'orderBy' => ['is_primary' => 'DESC'],
+      'checkPermissions' => FALSE,
+    ])->first()['email'] ?? '';
+    $rows[] = $c;
+  }
+
+  return $rows;
+}
+
+/**
+ * Approve or decline, from the screen rather than from CiviCRM.
+ *
+ * Neither of these does the work itself. Adding the contact to the members or
+ * declined group is what the onboarding plugin already watches for, so the
+ * member number, the welcome email, the Discord link and the decline email all
+ * happen exactly as they do when a reviewer moves someone by hand in CiviCRM.
+ * Two ways into the same path, not two paths.
+ *
+ * @return string A message for the reviewer, or '' when nothing was done.
+ */
+function openar_admin_decide(int $contactId, string $action, string $reason = ''): string {
+  if (!function_exists('openar_add_to_group')) {
+    return 'The onboarding plugin is not loaded, so nothing was changed.';
+  }
+  civi_wp()->initialize();
+
+  $who = civicrm_api4('Contact', 'get', [
+    'select' => ['display_name', 'is_deleted'],
+    'where' => [['id', '=', $contactId]],
+    'checkPermissions' => FALSE,
+  ])->first();
+
+  if (!$who || $who['is_deleted']) {
+    return "Contact #{$contactId} no longer exists.";
+  }
+  $name = $who['display_name'];
+
+  if ($action === 'approve') {
+    if (openar_in_group($contactId, OPENAR_MEMBERS_GROUP)) {
+      return "{$name} was already a member, so nothing changed.";
+    }
+    openar_add_to_group($contactId, OPENAR_MEMBERS_GROUP);
+    return "{$name} is now a member. Their welcome email, member number and "
+      . 'Discord link have gone out.';
+  }
+
+  if ($action === 'decline') {
+    $reason = trim($reason);
+    if ($reason === '') {
+      return 'A decline needs a reason, because the reason is what the applicant '
+        . 'is sent. Nothing was changed.';
+    }
+    // Written before the group add, so the decline email goes out complete on
+    // the first attempt rather than firing the "no reason recorded" notice.
+    civicrm_api4('Contact', 'update', [
+      'where' => [['id', '=', $contactId]],
+      'values' => ['Membership.decline_reason' => $reason],
+      'checkPermissions' => FALSE,
+    ]);
+    openar_add_to_group($contactId, OPENAR_DECLINED_GROUP);
+    return "{$name} has been declined, and the reason you wrote has been emailed to them.";
+  }
+
+  return '';
+}
+
 /** Pending submissions, with the applicant dug out of the data blob. */
 function openar_admin_pending(): array {
   if (!function_exists('civi_wp')) {
@@ -178,7 +293,32 @@ function openar_admin_page(): void {
     }
   }
 
+  // Approve and decline. Both are POST with a nonce, deliberately, and neither
+  // is reachable by following a link. Reviewer email lands on this screen, not
+  // on the action: a URL that admits a member on GET would be fired by every
+  // link scanner, safe-links rewriter and mail gateway between here and the
+  // reviewer's inbox, and would admit people nobody had looked at.
+  if (!empty($_POST['openar_decide']) && !empty($_POST['openar_contact'])) {
+    $cid = (int) $_POST['openar_contact'];
+    $action = sanitize_key((string) $_POST['openar_decide']);
+
+    if (!isset($_POST['_wpnonce']) || !wp_verify_nonce(sanitize_key($_POST['_wpnonce']), "openar_decide_{$cid}")) {
+      $error = 'That request could not be verified. Please try again.';
+    }
+    else {
+      $result = openar_admin_decide($cid, $action, wp_unslash((string) ($_POST['openar_reason'] ?? '')));
+      if (str_contains($result, 'needs a reason') || str_contains($result, 'no longer exists')
+        || str_contains($result, 'not loaded')) {
+        $error = $result;
+      }
+      else {
+        $notice = $result;
+      }
+    }
+  }
+
   $pending = openar_admin_pending();
+  $queue = openar_admin_review_queue();
   ?>
   <div class="wrap">
     <h1>OpenAR onboarding</h1>
@@ -238,6 +378,86 @@ function openar_admin_page(): void {
         <?php endforeach; ?>
       </tbody>
     </table>
+
+    <?php if ($queue) : ?>
+      <h2 style="margin-top:2em">Applications to review</h2>
+      <p class="description" style="max-width:60em">
+        These people have confirmed their email address and are waiting on a
+        decision. Approving sends the welcome email with their member number and
+        Discord link. Declining sends the reason you write, so write it as
+        something you are content for them to read.
+      </p>
+
+      <?php foreach ($queue as $a) : ?>
+        <?php
+        $cid = (int) $a['id'];
+        $focus = ((int) ($_GET['review'] ?? 0) === $cid);
+        $linkedin = (string) ($a['Membership.linkedin_url'] ?? '');
+        ?>
+        <div id="applicant-<?php echo $cid; ?>" class="card" style="max-width:60em;padding:16px 20px;margin:14px 0;<?php echo $focus ? 'border-left:4px solid #e8a020;' : ''; ?>">
+          <h3 style="margin:0 0 4px"><?php echo esc_html($a['display_name']); ?></h3>
+
+          <table class="widefat striped" style="margin:10px 0;">
+            <tbody>
+              <tr>
+                <td style="width:14em"><strong>Email</strong></td>
+                <td><a href="mailto:<?php echo esc_attr($a['email']); ?>"><?php echo esc_html($a['email'] ?: '(none)'); ?></a></td>
+              </tr>
+              <tr>
+                <td><strong>Employer or affiliation</strong></td>
+                <td><?php echo esc_html($a['Membership.employer_affiliation'] ?: '(not given)'); ?></td>
+              </tr>
+              <tr>
+                <td><strong>LinkedIn</strong></td>
+                <td>
+                  <?php if ($linkedin) : ?>
+                    <a href="<?php echo esc_url($linkedin); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html($linkedin); ?></a>
+                  <?php else : ?>
+                    (not supplied)
+                  <?php endif; ?>
+                </td>
+              </tr>
+              <tr>
+                <td><strong>Confirmed their email</strong></td>
+                <td><?php echo esc_html($a['Membership.email_confirmed_date'] ?: '(not recorded)'); ?>
+                  <?php if (!empty($a['Membership.terms_version'])) : ?>
+                    &nbsp;&middot;&nbsp; agreed to Terms v<?php echo esc_html($a['Membership.terms_version']); ?>
+                  <?php endif; ?>
+                </td>
+              </tr>
+              <?php if (!empty($a['Membership.application_notes'])) : ?>
+                <tr>
+                  <td><strong>Review notes</strong></td>
+                  <td style="white-space:pre-wrap"><?php echo esc_html($a['Membership.application_notes']); ?></td>
+                </tr>
+              <?php endif; ?>
+            </tbody>
+          </table>
+
+          <div style="display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap">
+            <form method="post" style="margin:0">
+              <?php wp_nonce_field("openar_decide_{$cid}"); ?>
+              <input type="hidden" name="openar_contact" value="<?php echo $cid; ?>" />
+              <input type="hidden" name="openar_decide" value="approve" />
+              <button type="submit" class="button button-primary">Approve and welcome them</button>
+            </form>
+
+            <form method="post" style="margin:0;flex:1;min-width:22em">
+              <?php wp_nonce_field("openar_decide_{$cid}"); ?>
+              <input type="hidden" name="openar_contact" value="<?php echo $cid; ?>" />
+              <input type="hidden" name="openar_decide" value="decline" />
+              <textarea name="openar_reason" rows="2" style="width:100%"
+                placeholder="Reason, in words you are content for them to read. Required to decline."></textarea>
+              <button type="submit" class="button" style="margin-top:6px">Decline</button>
+            </form>
+          </div>
+
+          <p style="margin:10px 0 0">
+            <a href="<?php echo esc_url(openar_admin_civi_url('civicrm/contact/view', 'reset=1&cid=' . $cid)); ?>">Open the full record in CiviCRM</a>
+          </p>
+        </div>
+      <?php endforeach; ?>
+    <?php endif; ?>
 
     <?php if ($pending) : ?>
       <h2 style="margin-top:2em">Waiting on confirmation</h2>

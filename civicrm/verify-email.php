@@ -34,11 +34,11 @@ require_once __DIR__ . '/openar-signature.php';
 $html = <<<HTML
 <p>Hello {\$firstName},</p>
 
-<p>Thank you for wanting to join us. We are glad you are here, and there is one small thing left to do: confirm that this email address is yours.</p>
+<p>Thank you for wanting to join us. We are glad you are here. The first step is to confirm that this email address is yours.</p>
 
 <p><a href="{\$verifyUrl}" style="display:inline-block;padding:12px 22px;background:#e8a020;color:#161410;font-family:Arial,Helvetica,sans-serif;font-weight:600;text-decoration:none;border-radius:3px;">Confirm my email address</a></p>
 
-<p>Your application reaches us only when you confirm, so nothing happens until you do. The link works once and is good for {\$expiryDays} days. If it lapses, apply again at <a href="APPLY_URL_HERE">join.openarcollective.org/apply</a> and a new link will be on its way straight after.</p>
+<p>Your application reaches us only when you confirm, so nothing happens until you do. The link works once and is valid for {\$expiryDays} days. If it lapses, apply again at <a href="APPLY_URL_HERE">join.openarcollective.org/apply</a> and a new link will be on its way straight after.</p>
 
 <p>If the button does not work, copy this address into your browser:</p>
 
@@ -50,13 +50,13 @@ HTML;
 $text = <<<TEXT
 Hello {\$firstName},
 
-Thank you for wanting to join us. We are glad you are here, and there is one small thing left to do: confirm that this email address is yours.
+Thank you for wanting to join us. We are glad you are here. The first step is to confirm that this email address is yours.
 
 Open this link to confirm:
 
 {\$verifyUrl}
 
-Your application reaches us only when you confirm, so nothing happens until you do. The link works once and is good for {\$expiryDays} days. If it lapses, apply again at APPLY_URL_HERE and a new link will be on its way straight after.
+Your application reaches us only when you confirm, so nothing happens until you do. The link works once and is valid for {\$expiryDays} days. If it lapses, apply again at APPLY_URL_HERE and a new link will be on its way straight after.
 
 If you did not apply, you can ignore this message and nothing further will happen.
 TEXT;

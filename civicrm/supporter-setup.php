@@ -68,13 +68,13 @@ $templates[] = [
   'msg_text' => <<<'TEXT'
 Hello {$firstName},
 
-Thank you for standing with us. A Mission Supporter Statement of Support was signed in your organization's name, giving this address as the signer, and one small thing is left: confirm that this address is yours.
+Thank you for standing with us. A Mission Supporter Statement of Support was signed in your organization's name, giving this address as the signer, and one step is left: confirm that this address is yours.
 
 Open this link to confirm:
 
 {$verifyUrl}
 
-Nothing is recorded, and your organization is not listed anywhere, until you confirm. The link works once and is good for {$expiryDays} days. If it lapses, you can sign again at SIGN_URL_HERE.
+Nothing is recorded, and your organization is not listed anywhere, until you confirm. The link works once and is valid for {$expiryDays} days. If it lapses, you can sign again at SIGN_URL_HERE.
 
 After you confirm, someone here reads the signature before your organization appears on the public roster. Signing costs nothing and carries no financial commitment of any kind, now or ever.
 
@@ -83,11 +83,11 @@ TEXT,
   'msg_html' => <<<'HTML'
 <p>Hello {$firstName},</p>
 
-<p>Thank you for standing with us. A Mission Supporter Statement of Support was signed in your organization's name, giving this address as the signer, and one small thing is left: confirm that this address is yours.</p>
+<p>Thank you for standing with us. A Mission Supporter Statement of Support was signed in your organization's name, giving this address as the signer, and one step is left: confirm that this address is yours.</p>
 
 <p><a href="{$verifyUrl}" style="display:inline-block;padding:12px 22px;background:#e8a020;color:#161410;font-family:Arial,Helvetica,sans-serif;font-weight:600;text-decoration:none;border-radius:3px;">Confirm this signature</a></p>
 
-<p>Nothing is recorded, and your organization is not listed anywhere, until you confirm. The link works once and is good for {$expiryDays} days. If it lapses, you can sign again at <a href="SIGN_URL_HERE">join.openarcollective.org/sign</a>.</p>
+<p>Nothing is recorded, and your organization is not listed anywhere, until you confirm. The link works once and is valid for {$expiryDays} days. If it lapses, you can sign again at <a href="SIGN_URL_HERE">join.openarcollective.org/sign</a>.</p>
 
 <p>After you confirm, someone here reads the signature before your organization appears on the public roster. Signing costs nothing and carries no financial commitment of any kind, now or ever.</p>
 

@@ -32,7 +32,7 @@ require_once __DIR__ . '/openar-signature.php';
 
 $templates[] = [
   'msg_title' => 'OpenAR - You are already a member',
-  'msg_subject' => 'Good news, you are already a member',
+  'msg_subject' => 'Good news, you are already a member!',
   'closing' => 'Good to have you with us',
   'msg_text' => <<<'TEXT'
 Hello {$firstName},
