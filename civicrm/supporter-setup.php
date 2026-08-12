@@ -48,7 +48,12 @@ $signerName = supporter_token('signer_name');
 $signerTitle = supporter_token('signer_title');
 $signerEmail = supporter_token('signer_email');
 
-$view = 'https://join.openarcollective.org/civicrm/?page=CiviCRM&q=civicrm/contact/view&reset=1&cid={contact.id}';
+// wp-admin, not the front end. CiviCRM renders inside the site theme on the
+// basepage, where the brand stylesheet is scoped to public forms only and the
+// theme's typography fights CiviCRM's own: mismatched fonts and backgrounds,
+// and a select box clipped so only its top half shows. The same screen in
+// wp-admin is styled by CiviCRM and looks right.
+$view = 'https://join.openarcollective.org/wp-admin/admin.php?page=CiviCRM&q=civicrm/contact/view&reset=1&cid={contact.id}';
 
 $templates = [];
 

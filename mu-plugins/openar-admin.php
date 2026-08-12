@@ -45,6 +45,43 @@ function openar_admin_menu(): void {
   );
 }
 
+/**
+ * Whether outbound mail is actually going out, and what is wrong if not.
+ *
+ * Testing switches CiviCRM to "Redirect to Database" so nothing reaches a real
+ * inbox, and leaving it there silently stops every confirmation, review
+ * notification and welcome. It has happened, and it was noticed by a person
+ * rather than by the system. A note nobody has to remember to look for is
+ * worth more than a script somebody has to remember to run.
+ *
+ * @return string Empty when mail is fine, otherwise the problem in one line.
+ */
+function openar_admin_mail_problem(): string {
+  if (!function_exists('civi_wp')) {
+    return '';
+  }
+  civi_wp()->initialize();
+
+  $mb = (array) \Civi::settings()->get('mailing_backend');
+  $mode = (int) ($mb['outBound_option'] ?? 0);
+
+  if ($mode === 5) {
+    return 'Outbound email is set to Redirect to Database, so nothing is being delivered. '
+      . 'Every confirmation link, review notification and welcome email is being written to a table instead of sent.';
+  }
+  if ($mode === 2) {
+    return 'Outbound email is disabled, so nothing is being delivered.';
+  }
+  if ($mode === 0 && empty($mb['smtpServer'])) {
+    return 'Outbound email is set to SMTP but no server is configured, so sending will fail.';
+  }
+  if ($mode === 0 && !empty($mb['smtpAuth']) && empty($mb['smtpPassword'])) {
+    return 'Outbound email is set to SMTP with authentication on, but no password is stored.';
+  }
+
+  return '';
+}
+
 /** Pending submissions, with the applicant dug out of the data blob. */
 function openar_admin_pending(): array {
   if (!function_exists('civi_wp')) {
@@ -139,6 +176,15 @@ function openar_admin_page(): void {
   ?>
   <div class="wrap">
     <h1>OpenAR onboarding</h1>
+
+    <?php $mailProblem = openar_admin_mail_problem(); ?>
+    <?php if ($mailProblem) : ?>
+      <div class="notice notice-error">
+        <p><strong>Email is not going out.</strong> <?php echo esc_html($mailProblem); ?></p>
+        <p>Fix it under
+          <a href="<?php echo esc_url(openar_admin_civi_url('civicrm/admin/setting/smtp', 'reset=1')); ?>">Outbound Email</a>.</p>
+      </div>
+    <?php endif; ?>
 
     <?php if ($notice) : ?>
       <div class="notice notice-success is-dismissible"><p><?php echo esc_html($notice); ?></p></div>
@@ -297,7 +343,14 @@ function openar_admin_dashboard_render(): void {
   $members = openar_admin_group_count('members');
 
   $screen = admin_url('tools.php?page=' . OPENAR_ADMIN_SLUG);
+  $mailProblem = openar_admin_mail_problem();
   ?>
+  <?php if ($mailProblem) : ?>
+    <p style="margin:0 0 10px;padding:8px 10px;background:#fcf0f1;border-left:4px solid #d63638">
+      <strong>Email is not going out.</strong><br />
+      <?php echo esc_html($mailProblem); ?>
+    </p>
+  <?php endif; ?>
   <ul style="margin:0">
     <li style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #f0f0f1">
       <span><a href="<?php echo esc_url($screen); ?>">Waiting on confirmation</a>

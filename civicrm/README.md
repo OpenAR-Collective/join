@@ -480,3 +480,32 @@ false positive costs a glance while a miss costs a duplicate member record.
 record holding member number 1 that had never been added to the members group
 therefore read as merely "known", and that person could apply again as though
 unknown. A member number is now evidence in its own right.
+
+## CiviCRM links in emails must point at wp-admin
+
+A contact link written as `join.openarcollective.org/civicrm/?page=CiviCRM&q=...`
+renders CiviCRM inside the public site theme. The brand stylesheet is scoped to
+`#crm-container.crm-public`, which admin screens do not carry, so none of it
+applies and the theme's own typography fights CiviCRM's: mismatched fonts and
+backgrounds, and select boxes clipped so only the top half shows.
+
+Reviewer emails used to send people there. They now link to
+
+```
+https://join.openarcollective.org/wp-admin/admin.php?page=CiviCRM&q=<path>&reset=1
+```
+
+where CiviCRM styles itself and the theme is not involved. Once you are on the
+front-end basepage CiviCRM keeps generating front-end links, so one bad link
+strands a reviewer there for the rest of the session.
+
+## The required asterisk was wrapping on its own
+
+Afform renders it as a separate `<span class="crm-marker">`, so any line break
+before it strands it alone on the next line. Trimming labels to avoid that is
+endless, because the width at which it happens moves with the viewport.
+
+`brand.css` now sets `text-wrap: pretty` on those labels, which tells the browser
+not to leave a short last line. Verified from 640px up: the marker always ends a
+line of text rather than starting one of its own. Browsers without support fall
+back to ordinary wrapping.

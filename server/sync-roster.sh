@@ -89,13 +89,20 @@ echo
 echo "changes to publish:"
 git status --porcelain src/content/supporters
 
+# Stage first. `commit -- <path>` only picks up changes to files git already
+# tracks, so a brand new supporter file is left behind and the commit fails
+# with "nothing added to commit". That made publishing any organization for
+# the first time impossible, while updates and removals would have worked,
+# which is why it survived every test until a real supporter was approved.
+git add -A -- src/content/supporters || fail "could not stage the roster"
+
 git -c user.name="openar-roster-sync" \
     -c user.email="bots@openarcollective.org" \
     commit --quiet -m "Update the Mission Supporter roster
 
 Written by the hourly roster sync from the CiviCRM published group.
 Approving or withdrawing a supporter happens in CiviCRM; this commit is
-the result of that decision, not the decision itself." -- src/content/supporters \
+the result of that decision, not the decision itself." \
   || fail "could not commit"
 
 # The token is short lived and never written to disk. Interpolating it into the

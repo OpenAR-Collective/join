@@ -32,11 +32,11 @@ $pages = [
     'title' => 'Check your email',
     'body' => <<<'HTML'
 <!-- wp:paragraph -->
-<p><strong>Your application has not been sent yet.</strong> We have emailed a confirmation link to the address you gave. Open it and your application goes to the Foundation for review.</p>
+<p><strong>Thank you for applying.</strong> One step is left: open the confirmation link we have just emailed to the address you gave, and your application goes to the Foundation for review.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>Nothing has been recorded in the Foundation's records, and nobody has seen your details. That only happens once you follow the link, which is what proves the address is yours.</p>
+<p>Opening the link is what proves the address is yours. Until then your details are held unread and nobody at the Foundation has seen them, which is deliberate: an address nobody has confirmed never becomes a record.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:heading {"level":2} -->
@@ -68,11 +68,11 @@ HTML,
     'title' => 'Check your email',
     'body' => <<<'HTML'
 <!-- wp:paragraph -->
-<p><strong>The Statement has not been signed yet.</strong> We have emailed a confirmation link to the signer's address. Open it and the signature is recorded.</p>
+<p><strong>Thank you for signing.</strong> One step is left: open the confirmation link we have just emailed to the signer's address, and the signature is recorded.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>Nothing has been recorded in the Foundation's records, and your organization is not listed anywhere. That only happens once the link is followed, which is what confirms the address belongs to the person who signed.</p>
+<p>Opening the link is what confirms the address belongs to the person who signed. Until then the signature is held unread and the organization appears nowhere, which is deliberate: a statement nobody has confirmed never becomes a record.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:heading {"level":2} -->

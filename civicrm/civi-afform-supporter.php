@@ -105,7 +105,7 @@ $layout = <<<'SUPPORTER_LAYOUT'
 <h2 id="other-terms">Other Terms</h2>
 <p>This Statement is not a contract for goods or services and creates no financial obligation on either party. It binds your organization to the version signed; if the Foundation issues a later version, your organization stays on this one unless it chooses to sign the newer version. The program is administered under a policy adopted by the Foundation’s Board of Directors, which the Board may amend or discontinue.</p></div>
     <af-field name="MissionSupporter.terms_agreement_org" defn="{required: true, input_type: 'CheckBox', label: 'Our organization has read and agrees to the Community Participation Terms above.'}" />
-    <af-field name="MissionSupporter.authority_representation" defn="{required: true, input_type: 'CheckBox', label: 'I have authority to bind the organization, and the information is truthful and current.'}" />
+    <af-field name="MissionSupporter.authority_representation" defn="{required: true, input_type: 'CheckBox', label: 'I have authority to bind the organization, and the information I provided is truthful and current.'}" />
   </fieldset>
   <button class="af-button btn btn-primary" ng-click="afform.submit()">Sign the Statement</button>
 </af-form>

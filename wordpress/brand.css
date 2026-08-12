@@ -417,3 +417,18 @@ body > .wp-site-blocks a:hover { color: #f5c050; }
   #crm-container.crm-public .oar-terms { padding: 1rem 1.1rem; }
 }
 
+/* A required field's asterisk is a separate <span class="crm-marker">, so any
+   line break before it strands it alone on the next line. That is a layout
+   fault, not a copy fault, and trimming labels to dodge it is endless: the
+   width at which it happens changes with the viewport.
+
+   text-wrap: pretty tells the browser not to leave a short last line, which is
+   exactly this case. Browsers without it fall back to ordinary wrapping, no
+   worse than before. */
+#crm-container.crm-public .crm-af-field-label {
+  text-wrap: pretty;
+}
+
+#crm-container.crm-public .crm-af-field-label .crm-marker {
+  white-space: nowrap;
+}
