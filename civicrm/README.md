@@ -349,3 +349,40 @@ A required checkbox has to be ticked. The membership form was already right;
 the supporter form was not.
 
 If you add an agreement to either form, set `input_type: 'CheckBox'` on it.
+
+## Before anything overwrites, it snapshots
+
+Every script here that replaces live configuration first calls
+`openar_snapshot()`, which writes the current state of all of it to
+`/home/rob/openar-snapshots/<timestamp>-<script>/`: both form layouts, all ten
+message templates, the brand stylesheet, and the custom field definitions.
+
+This exists because the guards are weaker than they look. A guard checks that
+*this file* contains the mission block and the terms. It cannot know that the
+*live* form has a section this file has never heard of, and that is the case
+that actually destroyed the membership form. The snapshot does not prevent that;
+it makes it a restore instead of an archaeology exercise.
+
+The same applies to the message templates, and more sharply, because the review
+template says it is editable in Administer > Message Templates. Edit one there,
+re-run its script, and the edit is gone. Now the previous version is on disk.
+
+Restoring is a copy:
+
+```bash
+cp /home/rob/openar-snapshots/<timestamp>-<script>/afformMembershipApplication.aff.html    /var/www/openarcollective.org/wp-content/uploads/civicrm/ang/
+```
+
+Nothing prunes them. They are a few hundred kilobytes each.
+
+One-time setup, since the scripts run as www-data and cannot write into rob's
+home:
+
+```bash
+mkdir -p /home/rob/openar-snapshots && chmod 1777 /home/rob/openar-snapshots
+```
+
+World-writable is deliberate and costs nothing: a snapshot holds only form
+layouts, email templates, a stylesheet and field definitions, every one of which
+is already in this public repository. No credential and no member record is ever
+written to one.

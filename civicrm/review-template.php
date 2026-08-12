@@ -1,6 +1,13 @@
 <?php
 /** Reviewer notification template. Editable later in Administer > Message Templates. */
 civicrm_initialize();
+// Keep a copy of whatever is live before replacing it. The guards below only
+// check that this file looks complete; they cannot know the live copy has
+// something this file lacks, which is the case that has actually bitten.
+define('OPENAR_SNAPSHOT_INCLUDED', TRUE);
+require_once __DIR__ . '/openar-snapshot.php';
+openar_snapshot(basename(__FILE__, '.php'));
+
 use Civi\Api4\MessageTemplate;
 
 $title = 'OpenAR - New membership application for review';
