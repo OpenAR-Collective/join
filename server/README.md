@@ -40,6 +40,15 @@ OPENAR_GH_KEY_FILE=/home/rob/.config/openar/openar-roster-sync.pem
 The `.pem` is the App's private key, also mode 600. Neither belongs in this
 repository, which is public.
 
+## Which branch it publishes to
+
+`BRANCH` in `sync-roster.sh`. It is `preview` while the site is being rehearsed,
+so a test supporter appears only on the Cloudflare preview deployment and never
+on openarcollective.org. Switch it to `main` when `full-site` merges.
+
+Deliberately not automatic. Publishing to the live roster should be a decision
+someone made, not a side effect of a branch name changing.
+
 ## Two things that will look like bugs and are not
 
 **It exits 0 saying `main` is still the holding page.** Until `full-site` merges,

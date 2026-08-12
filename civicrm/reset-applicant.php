@@ -2,6 +2,10 @@
 /**
  * Wipe one person's onboarding state so the whole process can be walked again.
  *
+ * Handles both paths. A member is found by their Email record; a supporter's
+ * signer is found by the custom field on the organization, since the signer is
+ * recorded rather than created as a contact of their own.
+ *
  * For testing with a real address. It purges rather than trashes, which is what
  * frees the member number again: CiviCRM keeps the custom values of a trashed
  * contact, so only a purge lets the next admission reuse the number.
@@ -31,20 +35,49 @@ function openar_reset_next_number(): int {
 }
 
 function openar_reset_report(): void {
+  echo "\nMission Supporters:\n";
+  $found = FALSE;
+  foreach (civicrm_api4('Contact', 'get', [
+    'select' => ['id', 'organization_name', 'MissionSupporter.signer_email'],
+    'where' => [['contact_type', '=', 'Organization'], ['MissionSupporter.signer_email', 'IS NOT EMPTY']],
+    'orderBy' => ['organization_name' => 'ASC'],
+    'checkPermissions' => FALSE,
+  ]) as $o) {
+    $groups = [];
+    foreach (civicrm_api4('GroupContact', 'get', [
+      'select' => ['group_id:name'],
+      'where' => [['contact_id', '=', $o['id']], ['status', '=', 'Added']],
+      'checkPermissions' => FALSE,
+    ]) as $g) {
+      $groups[] = $g['group_id:name'];
+    }
+    printf("  #%-4d %-34s %-34s %s\n",
+      $o['id'],
+      mb_strimwidth((string) $o['organization_name'], 0, 34, ''),
+      mb_strimwidth((string) $o['MissionSupporter.signer_email'], 0, 34, ''),
+      implode(',', $groups) ?: '(no group)');
+    $found = TRUE;
+  }
+  if (!$found) {
+    echo "  (none)\n";
+  }
+
   echo "\nMembers on record:\n";
-  $any = FALSE;
+  $found = FALSE;
   foreach (civicrm_api4('Contact', 'get', [
     'select' => ['id', 'display_name', 'Membership.member_number'],
     'where' => [['Membership.member_number', 'IS NOT EMPTY']],
     'orderBy' => ['Membership.member_number' => 'ASC'],
     'checkPermissions' => FALSE,
   ]) as $c) {
-    echo "  {$c['Membership.member_number']}  #{$c['id']} {$c['display_name']}\n";
-    $any = TRUE;
+    printf("  %-6s #%-4d %s\n",
+      $c['Membership.member_number'], $c['id'], $c['display_name']);
+    $found = TRUE;
   }
-  if (!$any) {
+  if (!$found) {
     echo "  (none)\n";
   }
+
   echo "\nNext member number to be issued: " . openar_reset_next_number() . "\n";
 }
 
@@ -56,6 +89,8 @@ if (!$email) {
 }
 
 $contactIds = [];
+
+// Members: the address is an Email record on the contact.
 foreach (civicrm_api4('Email', 'get', [
   'select' => ['contact_id'],
   'where' => [['email', '=', $email]],
@@ -63,6 +98,18 @@ foreach (civicrm_api4('Email', 'get', [
 ]) as $row) {
   $contactIds[(int) $row['contact_id']] = TRUE;
 }
+
+// Mission Supporters: the signer is recorded on the organization rather than
+// created as a contact, so their address is a custom field and the lookup above
+// will never find it.
+foreach (civicrm_api4('Contact', 'get', [
+  'select' => ['id'],
+  'where' => [['MissionSupporter.signer_email', '=', $email]],
+  'checkPermissions' => FALSE,
+]) as $row) {
+  $contactIds[(int) $row['id']] = TRUE;
+}
+
 $contactIds = array_keys($contactIds);
 
 if (!$contactIds) {

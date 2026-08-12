@@ -30,7 +30,10 @@ REPO="$WORK/website"
 # contents are the public roster, so a world-readable path gives nothing away.
 DUMP=/tmp/openar-supporters.json
 LOG="$WORK/last-run.log"
-BRANCH=main
+# The branch the roster publishes to. Set to a preview branch while the site is
+# being rehearsed, so a test supporter never appears on openarcollective.org.
+# Switch to main when full-site merges.
+BRANCH=preview
 
 mkdir -p "$WORK"
 
