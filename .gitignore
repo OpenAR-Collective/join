@@ -17,3 +17,4 @@ logs/
 # Dependencies and build output
 vendor/
 node_modules/
+local-hashes.txt
