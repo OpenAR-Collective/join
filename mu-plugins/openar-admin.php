@@ -475,40 +475,63 @@ function openar_admin_page(): void {
         <div id="applicant-<?php echo $cid; ?>" class="card" style="max-width:60em;padding:16px 20px;margin:14px 0;<?php echo $focus ? 'border-left:4px solid #e8a020;' : ''; ?>">
           <h3 style="margin:0 0 4px"><?php echo esc_html($a['display_name']); ?></h3>
 
+          <?php
+          // Same three-column shape as the supporter card: what it is, what it
+          // says, and any remark about it. Keeping remarks out of the value
+          // cell is what makes a column of values scannable.
+          $rows = [
+            [
+              'label' => 'Email',
+              'html' => $a['email']
+                ? '<a href="mailto:' . esc_attr($a['email']) . '">' . esc_html($a['email']) . '</a>'
+                : '<span style="color:#646970">(none)</span>',
+              'note' => '',
+            ],
+            [
+              'label' => 'Employer or affiliation',
+              'html' => $a['Membership.employer_affiliation']
+                ? esc_html($a['Membership.employer_affiliation'])
+                : '<span style="color:#646970">(not given)</span>',
+              'note' => 'The one thing this review is meant to confirm',
+            ],
+            [
+              'label' => 'LinkedIn',
+              'html' => $linkedin
+                ? '<a href="' . esc_url($linkedin) . '" target="_blank" rel="noopener noreferrer">' . esc_html($linkedin) . '</a>'
+                : '<span style="color:#646970">(not supplied)</span>',
+              'note' => '',
+            ],
+            [
+              'label' => 'Confirmed their email',
+              'html' => $a['Membership.email_confirmed_date']
+                ? esc_html($a['Membership.email_confirmed_date'])
+                : '<span style="color:#646970">(not recorded)</span>',
+              'note' => !empty($a['Membership.terms_version'])
+                ? 'Agreed to Terms v' . $a['Membership.terms_version']
+                : '',
+            ],
+            [
+              'label' => 'Review notes',
+              'value' => (string) ($a['Membership.application_notes'] ?? ''),
+              'note' => '',
+              'wrap' => TRUE,
+              'skip' => empty($a['Membership.application_notes']),
+            ],
+          ];
+          ?>
+
           <table class="widefat striped" style="margin:10px 0;">
             <tbody>
-              <tr>
-                <td style="width:14em"><strong>Email</strong></td>
-                <td><a href="mailto:<?php echo esc_attr($a['email']); ?>"><?php echo esc_html($a['email'] ?: '(none)'); ?></a></td>
-              </tr>
-              <tr>
-                <td><strong>Employer or affiliation</strong></td>
-                <td><?php echo esc_html($a['Membership.employer_affiliation'] ?: '(not given)'); ?></td>
-              </tr>
-              <tr>
-                <td><strong>LinkedIn</strong></td>
-                <td>
-                  <?php if ($linkedin) : ?>
-                    <a href="<?php echo esc_url($linkedin); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html($linkedin); ?></a>
-                  <?php else : ?>
-                    (not supplied)
-                  <?php endif; ?>
-                </td>
-              </tr>
-              <tr>
-                <td><strong>Confirmed their email</strong></td>
-                <td><?php echo esc_html($a['Membership.email_confirmed_date'] ?: '(not recorded)'); ?>
-                  <?php if (!empty($a['Membership.terms_version'])) : ?>
-                    &nbsp;&middot;&nbsp; agreed to Terms v<?php echo esc_html($a['Membership.terms_version']); ?>
-                  <?php endif; ?>
-                </td>
-              </tr>
-              <?php if (!empty($a['Membership.application_notes'])) : ?>
+              <?php foreach ($rows as $r) : ?>
+                <?php if (!empty($r['skip'])) { continue; } ?>
                 <tr>
-                  <td><strong>Review notes</strong></td>
-                  <td style="white-space:pre-wrap"><?php echo esc_html($a['Membership.application_notes']); ?></td>
+                  <td style="width:12em"><strong><?php echo esc_html($r['label']); ?></strong></td>
+                  <td style="width:24em;<?php echo !empty($r['wrap']) ? 'white-space:pre-wrap' : ''; ?>">
+                    <?php echo $r['html'] ?? esc_html($r['value']); ?>
+                  </td>
+                  <td style="color:#646970"><?php echo esc_html($r['note']); ?></td>
                 </tr>
-              <?php endif; ?>
+              <?php endforeach; ?>
             </tbody>
           </table>
 
@@ -556,58 +579,81 @@ function openar_admin_page(): void {
         <div id="applicant-<?php echo $cid; ?>" class="card" style="max-width:60em;padding:16px 20px;margin:14px 0;<?php echo $focus ? 'border-left:4px solid #e8a020;' : ''; ?>">
           <h3 style="margin:0 0 4px"><?php echo esc_html($s['organization_name'] ?: $s['display_name']); ?></h3>
 
+          <?php
+          // A third column for the notes. They were appended to the values,
+          // which put a fact and a remark about that fact in one cell and made
+          // both harder to read, particularly the email one, where the remark
+          // is the thing a reviewer is looking for.
+          $emailNote = '';
+          $emailNoteColor = '';
+          if ($s['domain_matches']) {
+            $emailNote = "on the organization's own domain";
+            $emailNoteColor = '#186a3b';
+          }
+          elseif (!empty($s['mail_domain'])) {
+            $emailNote = "not the website's domain";
+            $emailNoteColor = '#a13b1e';
+          }
+
+          $rows = [
+            [
+              'label' => 'Trade name',
+              'value' => $s['MissionSupporter.trade_name'] ?: '',
+              'note' => $s['MissionSupporter.trade_name'] ? 'This is what the roster will show' : '',
+              'skip' => empty($s['MissionSupporter.trade_name']),
+            ],
+            [
+              'label' => 'Website',
+              'html' => $site
+                ? '<a href="' . esc_url($siteUrl) . '" target="_blank" rel="noopener noreferrer">' . esc_html($site) . '</a>'
+                : '<span style="color:#646970">(not supplied)</span>',
+              'note' => '',
+            ],
+            [
+              'label' => 'Registered in',
+              'html' => $s['MissionSupporter.registered_in']
+                ? esc_html($s['MissionSupporter.registered_in'])
+                : '<span style="color:#646970">(not supplied)</span>',
+              'note' => $s['MissionSupporter.registered_in']
+                ? "Searchable in that jurisdiction's public register"
+                : 'Without this, a name alone is hard to verify',
+            ],
+            [
+              'label' => 'Signed by',
+              'value' => trim($s['MissionSupporter.signer_name'] . ', ' . $s['MissionSupporter.signer_title'], ', '),
+              'note' => '',
+            ],
+            [
+              'label' => "Signer's email",
+              'html' => '<a href="mailto:' . esc_attr($s['MissionSupporter.signer_email']) . '">'
+                . esc_html($s['MissionSupporter.signer_email']) . '</a>',
+              'note' => $emailNote,
+              'noteColor' => $emailNoteColor,
+            ],
+            [
+              'label' => 'Supporter notes',
+              'value' => (string) ($s['MissionSupporter.supporter_notes'] ?? ''),
+              'note' => '',
+              'wrap' => TRUE,
+              'skip' => empty($s['MissionSupporter.supporter_notes']),
+            ],
+          ];
+          ?>
+
           <table class="widefat striped" style="margin:10px 0;">
             <tbody>
-              <?php if (!empty($s['MissionSupporter.trade_name'])) : ?>
+              <?php foreach ($rows as $r) : ?>
+                <?php if (!empty($r['skip'])) { continue; } ?>
                 <tr>
-                  <td style="width:14em"><strong>Trade name</strong></td>
-                  <td><?php echo esc_html($s['MissionSupporter.trade_name']); ?>
-                    &nbsp;<span style="color:#646970">this is what the roster will show</span></td>
+                  <td style="width:12em"><strong><?php echo esc_html($r['label']); ?></strong></td>
+                  <td style="width:24em;<?php echo !empty($r['wrap']) ? 'white-space:pre-wrap' : ''; ?>">
+                    <?php echo $r['html'] ?? esc_html($r['value']); ?>
+                  </td>
+                  <td style="color:<?php echo esc_attr($r['noteColor'] ?? '#646970'); ?>">
+                    <?php echo esc_html($r['note']); ?>
+                  </td>
                 </tr>
-              <?php endif; ?>
-              <tr>
-                <td style="width:14em"><strong>Website</strong></td>
-                <td>
-                  <?php if ($site) : ?>
-                    <a href="<?php echo esc_url($siteUrl); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html($site); ?></a>
-                  <?php else : ?>
-                    (not supplied)
-                  <?php endif; ?>
-                </td>
-              </tr>
-              <tr>
-                <td><strong>Registered in</strong></td>
-                <td>
-                  <?php if (!empty($s['MissionSupporter.registered_in'])) : ?>
-                    <?php echo esc_html($s['MissionSupporter.registered_in']); ?>
-                    &nbsp;<span style="color:#646970">searchable in that jurisdiction's public register</span>
-                  <?php else : ?>
-                    (not supplied)
-                  <?php endif; ?>
-                </td>
-              </tr>
-              <tr>
-                <td><strong>Signed by</strong></td>
-                <td><?php echo esc_html($s['MissionSupporter.signer_name']); ?>,
-                  <?php echo esc_html($s['MissionSupporter.signer_title']); ?></td>
-              </tr>
-              <tr>
-                <td><strong>Signer's email</strong></td>
-                <td>
-                  <a href="mailto:<?php echo esc_attr($s['MissionSupporter.signer_email']); ?>"><?php echo esc_html($s['MissionSupporter.signer_email']); ?></a>
-                  <?php if ($s['domain_matches']) : ?>
-                    <span style="color:#186a3b">&nbsp;&mdash; on the organization's own domain</span>
-                  <?php elseif (!empty($s['mail_domain'])) : ?>
-                    <span style="color:#a13b1e">&nbsp;&mdash; not the website's domain</span>
-                  <?php endif; ?>
-                </td>
-              </tr>
-              <?php if (!empty($s['MissionSupporter.supporter_notes'])) : ?>
-                <tr>
-                  <td><strong>Supporter notes</strong></td>
-                  <td style="white-space:pre-wrap"><?php echo esc_html($s['MissionSupporter.supporter_notes']); ?></td>
-                </tr>
-              <?php endif; ?>
+              <?php endforeach; ?>
             </tbody>
           </table>
 

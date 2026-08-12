@@ -658,6 +658,7 @@ function openar_decline_supporter(int $contactId): void {
       'firstName' => $org['MissionSupporter.signer_name'] ?: 'there',
       'organizationName' => $org['organization_name'] ?: $org['display_name'],
       'reason' => $reason,
+      'appealInbox' => OPENAR_APPEAL_INBOX,
     ],
   ]);
 
