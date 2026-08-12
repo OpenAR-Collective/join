@@ -24,6 +24,9 @@ sudo -u www-data wp --path=/var/www/openarcollective.org eval-file <script>.php
 | `decline-templates.php` | Decline email, and the alert when no reason is recorded |
 | `send-decline.php` | Lists declines; sends one whose reason arrived late |
 | `reset-applicant.php` | Purges one address so onboarding can be walked again |
+| `mail-live.php` | Asserts the live mail backend and clears the spool |
+| `dump-supporters.php` | Writes the published supporter group to JSON |
+| `notify-sync-failure.php` | Mails a failed roster sync to bots@ |
 | `fix-lang.php` | Populates `languageLimit` (see note) |
 
 ## Four things that are easy to get wrong
@@ -271,3 +274,20 @@ it went straight into the contact records. The roster gate meant nothing reached
 the website without a person, but the database would have filled with unverified
 claims. `supporter-setup.php` turns manual processing on and verification off, in
 the same arrangement the membership form uses.
+
+## Restoring live mail after a test
+
+Test scripts capture mail to the database by setting `mailing_backend` to
+`outBound_option: 5`. Restoring it by remembering the previous value is a trap:
+if an earlier run died before restoring, the "previous value" *is* the captured
+state, and restoring it faithfully keeps production mail switched off. That
+happened once.
+
+`mail-live.php` asserts the correct value rather than restoring a remembered one,
+reports anything left in the spool, and clears it:
+
+```bash
+sudo -u www-data wp --path=/var/www/openarcollective.org eval-file mail-live.php
+```
+
+Run it after any test session that touched mail.
