@@ -77,5 +77,11 @@ The screen shows name, address, which form, how long the link has left, and a
 button to send a fresh one. It also links to the review queues, the members
 group, and the supporter groups, so the day-to-day work has one starting point.
 
+The same figures appear as a **Dashboard widget**, so they are seen on login
+rather than only when someone remembers to look. It shows counts for
+applications waiting on confirmation, applications to review, supporters to
+review, and members, with the first few waiting applicants listed and anything
+lapsed marked in red.
+
 `civicrm/pending-applications.php` still does the same job from a terminal, and
 is the fallback if the plugin is ever unloaded.

@@ -17,6 +17,10 @@
  * Lives under Tools so it sits with the site rather than inside CiviCRM's
  * administration tree, and it is reachable only through wp-admin, which is
  * already behind Cloudflare Access.
+ *
+ * The same information also appears as a Dashboard widget, because the thing
+ * most likely to be missed is an application nobody knew was waiting, and a
+ * screen you have to remember to visit does not fix that.
  */
 
 declare(strict_types=1);
@@ -29,6 +33,7 @@ const OPENAR_ADMIN_SLUG = 'openar-onboarding';
 const OPENAR_ADMIN_CAP = 'manage_options';
 
 add_action('admin_menu', 'openar_admin_menu');
+add_action('wp_dashboard_setup', 'openar_admin_dashboard_widget');
 
 function openar_admin_menu(): void {
   add_management_page(
@@ -249,4 +254,93 @@ function openar_admin_group_id(string $name): int {
     'checkPermissions' => FALSE,
   ])->first();
   return $g ? (int) $g['id'] : 0;
+}
+
+
+/* ---------------------------------------------------------- dashboard -- */
+
+function openar_admin_dashboard_widget(): void {
+  if (!current_user_can(OPENAR_ADMIN_CAP)) {
+    return;
+  }
+  wp_add_dashboard_widget(
+    'openar_onboarding_status',
+    'OpenAR onboarding',
+    'openar_admin_dashboard_render'
+  );
+}
+
+/** How many contacts sit in a group, or null when the group is missing. */
+function openar_admin_group_count(string $name): ?int {
+  $id = openar_admin_group_id($name);
+  if (!$id) {
+    return NULL;
+  }
+  return (int) civicrm_api4('GroupContact', 'get', [
+    'select' => ['row_count'],
+    'where' => [['group_id', '=', $id], ['status', '=', 'Added']],
+    'checkPermissions' => FALSE,
+  ])->count();
+}
+
+function openar_admin_dashboard_render(): void {
+  if (!function_exists('civi_wp')) {
+    echo '<p>CiviCRM is not available.</p>';
+    return;
+  }
+
+  $pending = openar_admin_pending();
+  $lapsed = count(array_filter($pending, fn($r) => !$r['live']));
+
+  $toReview = openar_admin_group_count('applicants_pending_review');
+  $supporters = openar_admin_group_count('supporters_pending');
+  $members = openar_admin_group_count('members');
+
+  $screen = admin_url('tools.php?page=' . OPENAR_ADMIN_SLUG);
+  ?>
+  <ul style="margin:0">
+    <li style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #f0f0f1">
+      <span><a href="<?php echo esc_url($screen); ?>">Waiting on confirmation</a>
+        <?php if ($lapsed) : ?>
+          <span style="color:#a13b1e">&nbsp;&mdash; <?php echo (int) $lapsed; ?> lapsed</span>
+        <?php endif; ?>
+      </span>
+      <strong><?php echo count($pending); ?></strong>
+    </li>
+    <li style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #f0f0f1">
+      <span><a href="<?php echo esc_url(openar_admin_civi_url('civicrm/group/search', 'reset=1&force=1&context=smog&gid=' . openar_admin_group_id('applicants_pending_review'))); ?>">Applications to review</a></span>
+      <strong><?php echo $toReview === NULL ? '&mdash;' : (int) $toReview; ?></strong>
+    </li>
+    <li style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #f0f0f1">
+      <span><a href="<?php echo esc_url(openar_admin_civi_url('civicrm/group/search', 'reset=1&force=1&context=smog&gid=' . openar_admin_group_id('supporters_pending'))); ?>">Supporters to review</a></span>
+      <strong><?php echo $supporters === NULL ? '&mdash;' : (int) $supporters; ?></strong>
+    </li>
+    <li style="display:flex;justify-content:space-between;padding:4px 0">
+      <span><a href="<?php echo esc_url(openar_admin_civi_url('civicrm/group/search', 'reset=1&force=1&context=smog&gid=' . openar_admin_group_id('members'))); ?>">Members</a></span>
+      <strong><?php echo $members === NULL ? '&mdash;' : (int) $members; ?></strong>
+    </li>
+  </ul>
+
+  <?php if ($pending) : ?>
+    <p style="margin:10px 0 4px"><strong>Waiting on their confirmation email</strong></p>
+    <table style="width:100%;border-collapse:collapse">
+      <?php foreach (array_slice($pending, 0, 5) as $r) : ?>
+        <tr>
+          <td style="padding:2px 0"><?php echo esc_html($r['name']); ?></td>
+          <td style="padding:2px 0;color:#646970"><?php echo esc_html($r['email']); ?></td>
+          <td style="padding:2px 0;text-align:right;white-space:nowrap;<?php echo $r['live'] ? '' : 'color:#a13b1e'; ?>">
+            <?php echo $r['live'] ? (int) $r['days_left'] . 'd left' : 'lapsed'; ?>
+          </td>
+        </tr>
+      <?php endforeach; ?>
+    </table>
+    <?php if (count($pending) > 5) : ?>
+      <p style="margin:6px 0 0"><a href="<?php echo esc_url($screen); ?>">and <?php echo count($pending) - 5; ?> more</a></p>
+    <?php endif; ?>
+  <?php else : ?>
+    <p style="margin:10px 0 0;color:#646970">Nobody is waiting on a confirmation email.</p>
+  <?php endif; ?>
+
+  <p style="margin:10px 0 0"><a href="<?php echo esc_url($screen); ?>" class="button button-small">Open onboarding</a></p>
+  <?php
 }
