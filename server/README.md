@@ -42,9 +42,13 @@ repository, which is public.
 
 ## Which branch it publishes to
 
-`BRANCH` in `sync-roster.sh`. It is `preview` while the site is being rehearsed,
-so a test supporter appears only on the Cloudflare preview deployment and never
-on openarcollective.org. Switch it to `main` when `full-site` merges.
+`BRANCH` in `sync-roster.sh`. It is `full-site` while the site is being
+rehearsed, which Cloudflare builds to `full-site.website-8wa.pages.dev`, so a
+test supporter appears there and never on openarcollective.org. Switch it to
+`main` when `full-site` merges.
+
+One consequence: the sync pushes commits to `full-site`, so pull before working
+on it. The commits only ever touch `src/content/supporters/`.
 
 Deliberately not automatic. Publishing to the live roster should be a decision
 someone made, not a side effect of a branch name changing.
