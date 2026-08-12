@@ -1,0 +1,419 @@
+/* OpenAR Collective brand for join.openarcollective.org.
+
+   Colour rules follow the brand guide, which defines separate palettes for dark
+   and light grounds. Page chrome uses the dark rules (Off White text, Amber
+   accent). CiviCRM's screens are an Off White panel and therefore use the LIGHT
+   rules: Near Black text, Amber Dark accent, Amber Dark CTA with white text.
+   Mixing the two is what made the form feel incoherent.
+
+   Selectors carry #crm-container because CiviCRM's own ID rules outrank a class. */
+
+@font-face {
+  font-family: 'Barlow';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/wp-content/uploads/brand/barlow-semibold.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'DM Sans';
+  font-style: normal;
+  font-weight: 100 1000;
+  font-display: swap;
+  src: url('/wp-content/uploads/brand/dm-sans-variable.woff2') format('woff2-variations');
+}
+
+:root,
+body {
+  --oar-black: #0e0d0b;
+  --oar-surface: #161410;
+  --oar-cream: #f5f0e8;
+  --oar-text: #f4efe6;
+  --oar-amber: #e8a020;
+  --oar-amber-dark: #b87818;
+  --oar-muted: #888070;
+
+  /* Amber Dark reaches only 3.23:1 against the cream panel, so anything that
+     carries it as text on that ground uses this darkened form instead: 5.09:1
+     as ink, 5.78:1 as a fill behind white. */
+  --oar-amber-ink: #8f5a0d;
+
+  --wp--preset--color--base: #0e0d0b;
+  --wp--preset--color--contrast: #f4efe6;
+  --wp--preset--color--accent-1: #e8a020;
+  --wp--preset--color--accent-2: #f5c050;
+  --wp--preset--color--accent-3: #b87818;
+  --wp--preset--color--accent-4: #888070;
+  --wp--preset--color--accent-5: #161410;
+  --wp--preset--color--accent-6: #888070;
+
+  /* The theme's own measure is 645px, which left the prose noticeably narrower
+     than the two panels below it and squeezed those panels until their calls to
+     action wrapped. One measure for everything, matching the form panel. */
+  --wp--style--global--content-size: 58rem;
+}
+
+body {
+  background-color: var(--oar-black);
+  color: var(--oar-text);
+  font-family: 'DM Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-weight: 340;
+  line-height: 1.75;
+}
+
+h1, h2, h3, h4,
+.wp-block-heading,
+.wp-block-site-title {
+  font-family: 'Barlow', system-ui, sans-serif;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+body > .wp-site-blocks a { color: var(--oar-amber); text-underline-offset: 3px; }
+body > .wp-site-blocks a:hover { color: #f5c050; }
+:focus-visible { outline: 2px solid var(--oar-amber); outline-offset: 3px; }
+
+.oar-lede { font-size: 1.15rem; color: rgba(244, 239, 230, 0.82); }
+
+.oar-paths .wp-block-column {
+  border: 1px solid rgba(232, 160, 32, 0.14);
+  border-top: 3px solid var(--oar-amber);
+  border-radius: 3px;
+  background: rgba(22, 20, 16, 0.5);
+  padding: 1.5rem 1.75rem;
+}
+.oar-paths .wp-block-column p { color: rgba(244, 239, 230, 0.78); font-size: 0.98rem; }
+
+/* Calls to action on the dark ground: Amber fill, Near Black text, matching the
+   buttons on openarcollective.org. Scoped past `body > .wp-site-blocks a`,
+   which would otherwise paint the label amber on top of an amber fill. */
+.wp-site-blocks .wp-block-button__link {
+  display: inline-block;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 0.85rem;
+  letter-spacing: 0.09em;
+  line-height: 1.2;
+  text-transform: uppercase;
+  text-decoration: none;
+  padding: 0.85rem 1.8rem;
+  border-radius: 2px;
+  border: 1px solid transparent;
+  background: var(--oar-amber);
+  color: var(--oar-black);
+}
+.wp-site-blocks .wp-block-button__link:hover,
+.wp-site-blocks .wp-block-button__link:focus {
+  background: #f5c050;
+  color: var(--oar-black);
+}
+
+/* The two panels run to different lengths, so the calls to action are pinned to
+   the bottom edge rather than left floating under the last paragraph. */
+.oar-paths .wp-block-column { display: flex; flex-direction: column; }
+.oar-paths .wp-block-buttons { margin-top: auto; padding-top: 1.25rem; }
+
+/* ---------- CiviCRM screens: one continuous Off White panel ---------- */
+
+/* CiviCRM paints every h3 as a pale blue bar. It comes from a rule whose
+   selector list includes `#bootstrap-theme h3`, and an ID outranks any class
+   selector of ours, so neutralize the custom properties that rule reads
+   instead of trying to beat the selector. */
+#crm-container.crm-public {
+  --crm-heading-bg-color: transparent;
+  --crm-heading-color: var(--oar-black);
+  --crm-heading-padding: 0;
+  --crm-heading-radius: 0;
+
+  /* CiviCRM leaves this content-box, so the side padding sat outside the
+     max-width: 1016px on desktop, and on a phone the content box filled the
+     column while the padding pushed 58px off the right edge. */
+  box-sizing: border-box;
+  max-width: 58rem;
+  margin: 0 auto 4rem;
+  padding: 2.5rem 2.75rem 2.75rem;
+  background: var(--oar-cream);
+  color: var(--oar-black);
+  border-radius: 4px;
+  border-top: 3px solid var(--oar-amber);
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+/* Fieldsets and inner containers must not paint their own surface, or the panel
+   reads as stacked white slabs with gaps between them. */
+#crm-container.crm-public fieldset,
+#crm-container.crm-public .af-container,
+#crm-container.crm-public .crm-section,
+#crm-container.crm-public .crm-form-block {
+  background: transparent;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  box-shadow: none;
+}
+
+#crm-container.crm-public label,
+#crm-container.crm-public .af-field label {
+  display: block;
+  color: var(--oar-black);
+  font-weight: 550;
+  margin-bottom: 0.3rem;
+}
+
+/* Underlined, not color alone: against the muted help text this amber sits at
+   almost the same luminance, so hue is the only difference and that is exactly
+   what WCAG 1.4.1 rules out as the sole cue. */
+#crm-container.crm-public a {
+  color: var(--oar-amber-ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+#crm-container.crm-public .af-field { margin-bottom: 1.35rem; }
+
+#crm-container.crm-public .af-layout-cols2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 1.25rem;
+}
+@media (max-width: 34rem) {
+  #crm-container.crm-public .af-layout-cols2 { grid-template-columns: 1fr; }
+}
+
+#crm-container.crm-public input[type="text"],
+#crm-container.crm-public input[type="email"],
+#crm-container.crm-public input[type="url"],
+#crm-container.crm-public textarea,
+#crm-container.crm-public select {
+  width: 100%;
+  background: #fff;
+  color: var(--oar-black);
+  border: 1px solid #cfc6b4;
+  border-radius: 3px;
+  padding: 0.6rem 0.75rem;
+  font-family: inherit;
+  font-size: 1rem;
+}
+
+#crm-container.crm-public input:focus,
+#crm-container.crm-public textarea:focus,
+#crm-container.crm-public select:focus {
+  border-color: var(--oar-amber-dark);
+  outline: 2px solid rgba(184, 120, 24, 0.3);
+  outline-offset: 1px;
+}
+
+/* Help text reads as a hint rather than as body copy. Afform emits these as
+   `p.crm-af-field-help-post`; there is no `.af-field` element in the rendered
+   output, whatever the source layout looks like. */
+#crm-container.crm-public .crm-af-field-help-pre,
+#crm-container.crm-public .crm-af-field-help-post,
+#crm-container.crm-public .crm-help,
+#crm-container.crm-public .description {
+  color: #6b6455;
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+#crm-container.crm-public .crm-af-field-help-post { margin: 0.35rem 0 0; }
+#crm-container.crm-public .crm-af-field-help-pre { margin: 0 0 0.35rem; }
+
+/* Agreements: a bordered block of statements, each a real checkbox on one line. */
+#crm-container.crm-public .oar-agreements {
+  margin-top: 1.75rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #ddd4c2;
+}
+#crm-container.crm-public .oar-agreements .af-field { margin-bottom: 0.85rem; }
+#crm-container.crm-public .oar-agreements label {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  font-weight: 400;
+  line-height: 1.5;
+  margin-bottom: 0;
+}
+#crm-container.crm-public input[type="checkbox"] {
+  width: 1.05rem;
+  height: 1.05rem;
+  margin: 0.22rem 0 0 0;
+  accent-color: var(--oar-amber-dark);
+  flex: none;
+}
+
+/* Brand guide, light backgrounds: Amber Dark fill, white text. */
+#crm-container.crm-public .af-button,
+#crm-container.crm-public button[type="submit"],
+#crm-container.crm-public .btn-primary {
+  display: inline-block;
+  margin-top: 1.75rem;
+  background: var(--oar-amber-ink);
+  border: none;
+  color: #fff;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 0.85rem;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  padding: 0.85rem 1.9rem;
+  border-radius: 2px;
+  cursor: pointer;
+  height: auto;
+  min-height: 0;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+#crm-container.crm-public .af-button:hover { background: #7a4d0b; }
+
+/* CiviCRM zeroes the left padding of any button holding an icon, through
+   `.btn:has(i.crm-i)`, and renders the icon itself as a full-width flex box.
+   Together those drop the label onto a second line and jam it against the left
+   edge. Our buttons carry no icons, but the Form Builder adds them readily. */
+#crm-container.crm-public .af-button:has(i.crm-i) {
+  padding: 0.85rem 1.9rem;
+}
+#crm-container.crm-public .af-button i.crm-i {
+  display: inline;
+  width: auto;
+  margin-right: 0.5rem;
+}
+
+#crm-container.crm-public .crm-marker { color: #b3261e; }
+
+/* CiviCRM's own promotional footer does not belong on a public Foundation form. */
+/* The email join is capped at one, so its "add another" control is noise. */
+#crm-container.crm-public .af-repeat-add-btn,
+#crm-container.crm-public .crm-public-footer,
+#crm-container.crm-public .empowered-by-logo,
+#crm-container.crm-public .empowered-by-link {
+  display: none !important;
+}
+
+/* The admin gear menu is a dark dropdown that only form administrators ever
+   see. The cream-panel link color above lands on it unreadably, so hand those
+   links back to CiviCRM's own dropdown palette. */
+#crm-container.crm-public .crm-admin-block-context-dropdown a {
+  color: var(--crm-dropdown-color);
+}
+#crm-container.crm-public .crm-admin-block-context-dropdown a:hover,
+#crm-container.crm-public .crm-admin-block-context-dropdown a:focus {
+  color: var(--crm-dropdown-hover-text-color);
+}
+
+/* ---------- Quoted document blocks inside the CiviCRM panel ---------- */
+
+/* Everything inside the cream panel takes the light-ground text colour.
+   Without this, CiviCRM's default rgb(70,67,84) leaks into any block that sets
+   its own background. */
+#crm-container.crm-public,
+#crm-container.crm-public p,
+#crm-container.crm-public li,
+#crm-container.crm-public h1,
+#crm-container.crm-public h2,
+#crm-container.crm-public h3,
+#crm-container.crm-public h4,
+#crm-container.crm-public blockquote,
+#crm-container.crm-public af-title {
+  color: var(--oar-black);
+}
+
+#crm-container.crm-public af-title {
+  display: block;
+  font-family: 'Barlow', system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 1.45rem;
+  line-height: 1.25;
+  margin: 0 0 1.5rem;
+}
+
+/* The mission quote and the participation terms are light insets rather than
+   dark slabs. A dark block inside the cream panel reintroduces the two-ground
+   problem these styles exist to solve, and leaves CiviCRM's default text
+   colour sitting unreadably on top of it. */
+#crm-container.crm-public .oar-mission {
+  background: #ece5d6;
+  border-left: 3px solid var(--oar-amber-dark);
+  border-radius: 0 3px 3px 0;
+  margin: 0 0 1.75rem;
+  padding: 1.2rem 1.45rem;
+  font-size: 0.98rem;
+  line-height: 1.7;
+}
+
+#crm-container.crm-public .oar-terms {
+  background: #fffdf8;
+  border: 1px solid #ddd4c2;
+  border-radius: 3px;
+  margin: 0 0 1.75rem;
+  padding: 1.35rem 1.6rem;
+  max-height: 24rem;
+  overflow-y: auto;
+  font-size: 0.92rem;
+  line-height: 1.65;
+}
+
+#crm-container.crm-public .oar-terms h2,
+#crm-container.crm-public .oar-terms h3 {
+  font-family: 'Barlow', system-ui, sans-serif;
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 1.4rem 0 0.4rem;
+}
+
+#crm-container.crm-public .oar-mission > *:first-child,
+#crm-container.crm-public .oar-terms > *:first-child { margin-top: 0; }
+#crm-container.crm-public .oar-mission > *:last-child,
+#crm-container.crm-public .oar-terms > *:last-child { margin-bottom: 0; }
+
+#crm-container.crm-public .oar-terms ul,
+#crm-container.crm-public .oar-terms ol { padding-left: 1.3rem; margin: 0.5rem 0 0.9rem; }
+#crm-container.crm-public .oar-terms li { margin-bottom: 0.35rem; }
+
+#crm-container.crm-public .oar-h {
+  font-family: 'Barlow', system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 1.05rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--oar-amber-ink);
+  margin: 2rem 0 0.75rem;
+  background: transparent;
+  padding: 0 0 0.4rem;
+  border-bottom: 1px solid #ddd4c2;
+}
+#crm-container.crm-public .oar-h:first-of-type { margin-top: 0; }
+
+#crm-container.crm-public .oar-terms-label {
+  font-size: 0.93rem;
+  color: #6b6455;
+  margin-bottom: 0.5rem;
+}
+
+/* Grid children must be able to shrink, or long labels blow out the column. */
+#crm-container.crm-public .af-layout-cols2 > * { min-width: 0; }
+
+/* ---------- Phones ---------- */
+
+/* On a 375px screen the theme gutter and the panel's own inset spent 148px of
+   the 375 on empty margin. Both come down, and the window gutter is set through
+   the theme's own variables so the negative margins that `alignfull` blocks
+   derive from them stay in step. */
+@media (max-width: 40rem) {
+  /* The theme sets these on body as well as :root, and the nearer definition
+     wins for everything inside it, so both have to be overridden. */
+  :root,
+  body {
+    --wp--style--root--padding-left: 1rem;
+    --wp--style--root--padding-right: 1rem;
+  }
+
+  #crm-container.crm-public {
+    padding: 1.75rem 1.25rem 2rem;
+  }
+
+  #crm-container.crm-public .oar-mission { padding: 1rem 1.1rem; }
+  #crm-container.crm-public .oar-terms { padding: 1rem 1.1rem; }
+}
+

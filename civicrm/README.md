@@ -13,6 +13,8 @@ sudo -u www-data wp --path=/var/www/openarcollective.org eval-file <script>.php
 | `civi-groups.php` | Applicant workflow groups |
 | `civi-groups2.php` | Members group (reuses the installer's) and supporter groups |
 | `civi-afform-membership.php` | Membership application form, complete layout |
+| `civi-afform-supporter.php` | Statement of Support form, complete layout |
+| `civi-fields-supporter.php` | Mission Supporter custom group and fields |
 | `verify-email.php` | Seven-day confirmation email template; disables Afform's ten-minute one |
 | `pending-applications.php` | Lists people who never confirmed; resends a link |
 | `confirm-email.php` | Superseded by `verify-email.php`, kept for history |
