@@ -28,51 +28,72 @@ $title = 'OpenAR - Welcome to the Collective';
 $text = <<<'TEXT'
 Hello {$firstName},
 
-You are in. Your membership has been approved, and we are glad to have you.
+Your membership has been reviewed and approved. You're in!
 
-Your member number is {$memberNumber}. Nobody will ask you for it often, but it is yours.
+You are member #{$memberNumber}
+We won't ask you for it often, and we can always look you up by name or email, but it is uniquely yours to cherish all the same.
 
 {if $discordUrl}
-Most of what makes this worthwhile happens on the Foundation's Discord server, where members talk to each other about the work. Open this link to join. You will be asked to sign in to Discord, or to create an account if you do not have one, and you will arrive with your name and your access already set.
+Most of what makes membership worthwhile happens on the Foundation's Discord server, where members discuss, collaborate, and create. Open this link to join. You will be asked to sign in to Discord, or to create an account if you do not have one, and you will arrive with your name and your access already set.
 
 {$discordUrl}
 {else}
 For an invitation to the Foundation's Discord server, write to membership@openarcollective.org and we will send you one.
 {/if}
 
-You are also on the members-only email list, which you can leave at any time without affecting your membership.
+You have also been added to the members-only email list, which you can unsubscribe from at any time by writing to membership@openarcollective.org, without affecting your membership.
 
-There are a few things the Foundation asks of everyone, and they exist so the space stays worth being in. Take part under your own name. Never share a consumer's personal or account information in a Foundation space. Many members compete with one another, so Foundation spaces are never used to discuss prices, fees, rates, terms of service, allocation of markets or customers, or refusal to deal. Vendors are welcome as practitioners, but commercial solicitation is not.
+There are a few things the Foundation asks of everyone, and they exist so the space stays worth being in.
 
-Criticism of the Foundation, its board, its software, or its published positions is never a violation of those standards and will never affect your participation. Say what you think.
+* Take part under your own name.
+
+* Never share a consumer's personal or account information in a Foundation space.
+
+* Remain cognizant of antitrust concerns. Many members compete with one another, so Foundation spaces are never used to discuss prices, fees, rates, terms of service, allocation of markets or customers, or refusal to deal.
+
+* Vendors are welcome as practitioners, but commercial solicitation is not.
+
+* Treat all participants with respect. Harassment, discrimination, personal attacks, and intimidation are prohibited.
+
+* Criticism of the Foundation, its board, its software, or its published positions is never a violation of those standards and will never affect your participation. Say what you think.
 
 The full terms are at https://openarcollective.org/policies/community-programs-and-standards/
 
-If anything is unclear, or you would just like to introduce yourself, write to membership@openarcollective.org. A person reads it.
+If anything is unclear, or you would just like to introduce yourself, write to membership@openarcollective.org. All emails to that address are read and responded to by a real, live human.
 TEXT;
 
 $html = <<<'HTML'
 <p>Hello {$firstName},</p>
 
-<p>You are in. Your membership has been approved, and we are glad to have you.</p>
+<p>Your membership has been reviewed and approved. You're in!</p>
 
-<p>Your member number is <strong>{$memberNumber}</strong>. Nobody will ask you for it often, but it is yours.</p>
+<p style="margin:22px 0;padding:14px 18px;background:#f6f4f0;border-left:3px solid #e8a020;">
+<strong style="font-size:17px;">You are member #{$memberNumber}</strong><br />
+<em style="color:#5c564c;">We won't ask you for it often, and we can always look you up by name or email, but it is uniquely yours to cherish all the same.</em>
+</p>
 {if $discordUrl}
-<p>Most of what makes this worthwhile happens on the Foundation's Discord server, where members talk to each other about the work. Use the button below to join. You will be asked to sign in to Discord, or to create an account if you do not have one, and you will arrive with your name and your access already set.</p>
+<p>Most of what makes membership worthwhile happens on the Foundation's Discord server, where members discuss, collaborate, and create. Use the button below to join. You will be asked to sign in to Discord, or to create an account if you do not have one, and you will arrive with your name and your access already set.</p>
 
 <p><a href="{$discordUrl}" style="display:inline-block;padding:12px 22px;background:#e8a020;color:#161410;font-family:Arial,Helvetica,sans-serif;font-weight:600;text-decoration:none;border-radius:3px;">Join the Discord server</a></p>
 {else}
 <p>For an invitation to the Foundation's Discord server, write to <a href="mailto:membership@openarcollective.org">membership@openarcollective.org</a> and we will send you one.</p>
 {/if}
-<p>You are also on the members-only email list, which you can leave at any time without affecting your membership.</p>
+<p>You have also been added to the members-only email list, which you can unsubscribe from at any time by writing to <a href="mailto:membership@openarcollective.org">membership@openarcollective.org</a>, without affecting your membership.</p>
 
-<p>There are a few things the Foundation asks of everyone, and they exist so the space stays worth being in. Take part under your own name. Never share a consumer's personal or account information in a Foundation space. Many members compete with one another, so Foundation spaces are never used to discuss prices, fees, rates, terms of service, allocation of markets or customers, or refusal to deal. Vendors are welcome as practitioners, but commercial solicitation is not.</p>
+<p>There are a few things the Foundation asks of everyone, and they exist so the space stays worth being in.</p>
 
-<p>Criticism of the Foundation, its board, its software, or its published positions is never a violation of those standards and will never affect your participation. Say what you think.</p>
+<ul style="padding-left:20px;">
+<li style="margin-bottom:10px;">Take part under your own name.</li>
+<li style="margin-bottom:10px;">Never share a consumer's personal or account information in a Foundation space.</li>
+<li style="margin-bottom:10px;">Remain cognizant of antitrust concerns. Many members compete with one another, so Foundation spaces are never used to discuss prices, fees, rates, terms of service, allocation of markets or customers, or refusal to deal.</li>
+<li style="margin-bottom:10px;">Vendors are welcome as practitioners, but commercial solicitation is not.</li>
+<li style="margin-bottom:10px;">Treat all participants with respect. Harassment, discrimination, personal attacks, and intimidation are prohibited.</li>
+<li>Criticism of the Foundation, its board, its software, or its published positions is never a violation of those standards and will never affect your participation. Say what you think.</li>
+</ul>
 
 <p>The full terms are in the <a href="https://openarcollective.org/policies/community-programs-and-standards/">Community Programs and Standards Policy</a>.</p>
 
-<p>If anything is unclear, or you would just like to introduce yourself, write to <a href="mailto:membership@openarcollective.org">membership@openarcollective.org</a>. A person reads it.</p>
+<p>If anything is unclear, or you would just like to introduce yourself, write to <a href="mailto:membership@openarcollective.org">membership@openarcollective.org</a>. All emails to that address are read and responded to by a real, live human.</p>
 HTML;
 
 $text .= openar_signature_text();
