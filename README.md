@@ -80,8 +80,43 @@ group, and the supporter groups, so the day-to-day work has one starting point.
 The same figures appear as a **Dashboard widget**, so they are seen on login
 rather than only when someone remembers to look. It shows counts for
 applications waiting on confirmation, applications to review, supporters to
-review, and members, with the first few waiting applicants listed and anything
-lapsed marked in red.
+review, Mission Supporters listed on the public roster, and members, with the
+first few waiting applicants listed and anything lapsed marked in red.
+
+Both screens carry a red warning when outbound email is not actually being
+delivered, which is the failure that hides best: everything appears to work and
+nothing arrives.
 
 `civicrm/pending-applications.php` still does the same job from a terminal, and
 is the fallback if the plugin is ever unloaded.
+
+## CiviCRM belongs in wp-admin
+
+CiviCRM will happily render a contact record on the public base page, inside the
+site theme, where it looks broken: the theme's typography and the brand
+stylesheet are built for the public forms, and CiviCRM's own admin CSS expects
+wp-admin. Unreadable buttons, and select boxes clipped to half their height.
+
+`openar-admin.php` moves signed-in staff from a front-end back office path to the
+same page in wp-admin, carrying the query string. That is done at the door rather
+than by correcting the links we send, because one bad entry point was enough:
+once you were on the base page, CiviCRM generated base page links for everything
+after it, so an old email or a bookmark kept a whole session there.
+
+The list of back office paths is a denylist, deliberately. Both forms and the
+confirmation link people open from their email have to keep working for a
+stranger with no account, so the default is to leave a path alone.
+
+## Installing a must-use plugin
+
+`wp-content/mu-plugins` belongs to `www-data`, and the deploy account may run
+only `wp` as that user. So a plugin is staged somewhere writable and put in place
+by `server/install-mu-plugin.php`, which `wp` runs as the web user:
+
+```bash
+scp mu-plugins/openar-admin.php rob@HOST:/tmp/ && ssh rob@HOST 'sudo -u www-data wp --path=/var/www/openarcollective.org eval-file ~/openar-server/install-mu-plugin.php /tmp/openar-admin.php'
+```
+
+It refuses to install anything that does not parse. A must-use plugin with a
+syntax error takes down the whole site including wp-admin, leaving no way back in
+except a shell.

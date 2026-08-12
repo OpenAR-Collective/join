@@ -10,6 +10,7 @@ a change on openarcollective.org, hourly, with nobody running anything.
 | `github-token.php` | `/home/rob/openar-server/` | Mints a GitHub App installation token. |
 | `dump-supporters.php` | `/home/rob/openar-scripts/` | Writes the published group to JSON. |
 | `notify-sync-failure.php` | `/home/rob/openar-scripts/` | Mails a failure to bots@. |
+| `install-mu-plugin.php` | `/home/rob/openar-server/` | Puts a must-use plugin in place. Nothing to do with the roster; it is here because it is run the same way. |
 
 Cron: `17 * * * *`, as `rob`. `MAILTO=""` because the script mails its own
 failures with far better context than cron would.

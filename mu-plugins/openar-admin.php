@@ -289,6 +289,118 @@ function openar_admin_civi_url(string $path, string $query = 'reset=1'): string 
   return admin_url('admin.php?page=CiviCRM&q=' . rawurlencode($path) . '&' . $query);
 }
 
+/* ------------------------------------- keep back office out of the theme -- */
+
+/**
+ * CiviCRM back office paths that have no business rendering on the public site.
+ *
+ * A denylist rather than an allowlist, deliberately. Everything public that
+ * CiviCRM serves here (both forms, and the confirmation link people open from
+ * their email) has to keep working for a stranger with no account, and the way
+ * to guarantee that is for the default to be "leave it alone".
+ *
+ * Matched as whole path segments, so 'civicrm/a' catches the Angular back
+ * office at civicrm/a/#/... and never civicrm/afform/submission/verify.
+ */
+const OPENAR_BACK_OFFICE = [
+  'civicrm/contact', 'civicrm/group', 'civicrm/admin', 'civicrm/a',
+  'civicrm/activity', 'civicrm/case', 'civicrm/custom', 'civicrm/dashboard',
+  'civicrm/mailing', 'civicrm/report', 'civicrm/tag', 'civicrm/import',
+  'civicrm/export',
+];
+
+add_action('template_redirect', 'openar_admin_back_office_redirect', 1);
+
+/**
+ * Send staff from a front-end CiviCRM back office page to the same page in
+ * wp-admin.
+ *
+ * CiviCRM will render a contact record on the public base page, inside the site
+ * theme. It looks broken there, because it is: the theme's typography and the
+ * brand stylesheet are built for the public forms, and CiviCRM's own admin CSS
+ * expects wp-admin. The result is unreadable button text and select boxes
+ * clipped to half their height.
+ *
+ * The reason it kept happening is that one bad entry point was enough. Once you
+ * were on the base page CiviCRM generated base page links for everything after
+ * it, so the whole session stayed there. Correcting the links we send only
+ * fixed the links we send; old email, a bookmark, or anything CiviCRM linked to
+ * itself still landed here. Moving people at the door fixes all of them.
+ *
+ * Public pages are untouched, as is anyone not signed in.
+ */
+function openar_admin_back_office_redirect(): void {
+  if (is_admin() || wp_doing_ajax() || !is_user_logged_in()) {
+    return;
+  }
+  // A redirect turns a POST into a GET and drops the body, and a snippet is a
+  // fragment fetched into a page that is already open. Neither can be moved.
+  if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET' || isset($_GET['snippet'])) {
+    return;
+  }
+  if (!current_user_can(OPENAR_ADMIN_CAP) && !current_user_can('access_civicrm')) {
+    return;
+  }
+
+  $route = openar_admin_civi_route();
+  if ($route === '') {
+    return;
+  }
+
+  $back_office = FALSE;
+  foreach (OPENAR_BACK_OFFICE as $prefix) {
+    if ($route === $prefix || str_starts_with($route, $prefix . '/')) {
+      $back_office = TRUE;
+      break;
+    }
+  }
+  if (!$back_office) {
+    return;
+  }
+
+  // Everything the page was given, less the three parameters that only exist to
+  // get WordPress to hand the request to CiviCRM in the first place.
+  $args = $_GET;
+  unset($args['q'], $args['civiwp'], $args['page_id']);
+
+  $url = admin_url('admin.php?page=CiviCRM&q=' . rawurlencode($route));
+  if ($args) {
+    $url .= '&' . http_build_query($args);
+  }
+
+  // A 302 with no fragment of its own leaves the original one alone, which is
+  // what carries the route for civicrm/a/#/...
+  wp_safe_redirect($url, 302);
+  exit;
+}
+
+/**
+ * The CiviCRM path this front-end request is asking for, or '' if it is not a
+ * CiviCRM request at all.
+ */
+function openar_admin_civi_route(): string {
+  $q = isset($_GET['q']) ? trim((string) $_GET['q'], '/') : '';
+  if ($q !== '') {
+    return ($q === 'civicrm' || str_starts_with($q, 'civicrm/')) ? $q : '';
+  }
+
+  // No ?q=, so the path after the base page slug is the route. The slug is
+  // configurable and is not necessarily "civicrm", so ask rather than assume.
+  if (!function_exists('civi_wp') || !civi_wp()->initialize()) {
+    return '';
+  }
+  $base = trim((string) CRM_Core_Config::singleton()->wpBasePage, '/');
+  if ($base === '') {
+    return '';
+  }
+  $path = trim((string) parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH), '/');
+  if ($path !== $base && !str_starts_with($path, $base . '/')) {
+    return '';
+  }
+  $rest = trim(substr($path, strlen($base)), '/');
+  return $rest === '' ? 'civicrm' : 'civicrm/' . $rest;
+}
+
 function openar_admin_group_id(string $name): int {
   if (!function_exists('civi_wp')) {
     return 0;
@@ -340,6 +452,7 @@ function openar_admin_dashboard_render(): void {
 
   $toReview = openar_admin_group_count('applicants_pending_review');
   $supporters = openar_admin_group_count('supporters_pending');
+  $listed = openar_admin_group_count('supporters_published');
   $members = openar_admin_group_count('members');
 
   $screen = admin_url('tools.php?page=' . OPENAR_ADMIN_SLUG);
@@ -367,6 +480,12 @@ function openar_admin_dashboard_render(): void {
     <li style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #f0f0f1">
       <span><a href="<?php echo esc_url(openar_admin_civi_url('civicrm/group/search', 'reset=1&force=1&context=smog&gid=' . openar_admin_group_id('supporters_pending'))); ?>">Supporters to review</a></span>
       <strong><?php echo $supporters === NULL ? '&mdash;' : (int) $supporters; ?></strong>
+    </li>
+    <li style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #f0f0f1">
+      <span><a href="<?php echo esc_url(openar_admin_civi_url('civicrm/group/search', 'reset=1&force=1&context=smog&gid=' . openar_admin_group_id('supporters_published'))); ?>">Mission Supporters listed</a>
+        <span style="color:#646970">&nbsp;&mdash; on the public roster</span>
+      </span>
+      <strong><?php echo $listed === NULL ? '&mdash;' : (int) $listed; ?></strong>
     </li>
     <li style="display:flex;justify-content:space-between;padding:4px 0">
       <span><a href="<?php echo esc_url(openar_admin_civi_url('civicrm/group/search', 'reset=1&force=1&context=smog&gid=' . openar_admin_group_id('members'))); ?>">Members</a></span>
