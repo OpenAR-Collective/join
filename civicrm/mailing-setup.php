@@ -41,7 +41,46 @@ use Civi\Api4\MailingComponent;
 
 /* ------------------------------------------------------------- the footer -- */
 
+/**
+ * Two footers, and which is the default matters.
+ *
+ * The members-only list is not the only list. Prospects, gathered from
+ * conference attendee lists, will be mailed from here too, and the first
+ * version of this footer told every recipient "you are receiving this because
+ * you are a member", which would have been a false statement to every one of
+ * them.
+ *
+ * So the default is the one that is true of anybody, and the warmer
+ * members-only wording is the deliberate upgrade. That way forgetting to
+ * choose costs a little warmth rather than telling a stranger they are a
+ * member of something they have not joined.
+ */
 $footerText = <<<'TEXT'
+--
+You are receiving this because your address is on a mailing list kept by The Open Accounts Receivable Collective Foundation.
+
+Leave this mailing list: {action.unsubscribeUrl}
+Stop all email from the Foundation: {action.optOutUrl}
+
+Either one is honored immediately and needs no reason.
+
+{domain.address}
+TEXT;
+
+$footerHtml = <<<'HTML'
+<div style="margin-top:28px;padding-top:14px;border-top:1px solid #e3ded3;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.6;color:#5c564c;">
+<p style="margin:0 0 8px;">You are receiving this because your address is on a mailing list kept by The Open Accounts Receivable Collective Foundation.</p>
+<p style="margin:0 0 8px;">
+<a href="{action.unsubscribeUrl}" style="color:#8f5a0d;">Leave this mailing list</a>
+&nbsp;&middot;&nbsp;
+<a href="{action.optOutUrl}" style="color:#8f5a0d;">Stop all email from the Foundation</a>
+</p>
+<p style="margin:0 0 8px;">Either one is honored immediately and needs no reason.</p>
+<p style="margin:0;">{domain.address}</p>
+</div>
+HTML;
+
+$memberFooterText = <<<'TEXT'
 --
 You are receiving this because you are a member of The Open Accounts Receivable Collective Foundation.
 
@@ -53,7 +92,7 @@ Leaving the list does not affect your membership, and nobody is told that you le
 {domain.address}
 TEXT;
 
-$footerHtml = <<<'HTML'
+$memberFooterHtml = <<<'HTML'
 <div style="margin-top:28px;padding-top:14px;border-top:1px solid #e3ded3;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.6;color:#5c564c;">
 <p style="margin:0 0 8px;">You are receiving this because you are a member of The Open Accounts Receivable Collective Foundation.</p>
 <p style="margin:0 0 8px;">
@@ -103,6 +142,36 @@ foreach ($components as $c) {
     $wasSample ? 'replaced CiviCRM sample text' : 'updated');
 }
 
+/* ------------------------------------------- the warmer members-only one -- */
+
+const OPENAR_MEMBER_FOOTER = 'Mailing Footer - members only';
+
+$memberFooter = MailingComponent::get(FALSE)
+  ->addSelect('id')
+  ->addWhere('name', '=', OPENAR_MEMBER_FOOTER)
+  ->execute()->first();
+
+$values = [
+  'name' => OPENAR_MEMBER_FOOTER,
+  'component_type' => 'Footer',
+  'subject' => OPENAR_MEMBER_FOOTER,
+  'body_text' => $memberFooterText,
+  'body_html' => $memberFooterHtml,
+  'is_active' => TRUE,
+  // Never the default. The default has to be the one that is true of anybody
+  // on any list, so that forgetting to choose is survivable.
+  'is_default' => FALSE,
+];
+
+if ($memberFooter) {
+  MailingComponent::update(FALSE)->addWhere('id', '=', $memberFooter['id'])->setValues($values)->execute();
+  echo "Footer   " . OPENAR_MEMBER_FOOTER . "  updated\n";
+}
+else {
+  MailingComponent::create(FALSE)->setValues($values)->execute();
+  echo "Footer   " . OPENAR_MEMBER_FOOTER . "  created\n";
+}
+
 /* --------------------------------------------------------- the sending job -- */
 
 // Without this nothing sends, however well written. It needs a CiviCRM cron to
@@ -150,14 +219,19 @@ echo $latest
 echo "  Scheduled mailings need a CiviCRM cron every 15 minutes, which cannot be\n"
   . "  confirmed from here. Check with: crontab -l | grep job.execute\n";
 
+// Both of these are deliberate. Anything else appearing here is a group somebody
+// marked as a mailing list without saying so, which is worth noticing before it
+// turns up in a recipient picker next to the real ones.
+$expected = ['members', 'prospects'];
+
 foreach (civicrm_api4('Group', 'get', [
   'select' => ['name', 'title'],
   'where' => [['group_type:name', 'CONTAINS', 'Mailing List'], ['is_active', '=', TRUE]],
   'checkPermissions' => FALSE,
 ]) as $g) {
-  if (!in_array($g['name'], ['members'], TRUE)) {
-    echo "  Group \"{$g['title']}\" is marked as a mailing list and is not ours. "
-      . "CiviCRM ships sample groups; this one can be deleted or unmarked.\n";
+  if (!in_array($g['name'], $expected, TRUE)) {
+    echo "  Group \"{$g['title']}\" ({$g['name']}) is marked as a mailing list and is\n"
+      . "  not one this build knows about. Check it belongs there before sending.\n";
   }
 }
 
