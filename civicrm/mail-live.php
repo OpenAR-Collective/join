@@ -1,30 +1,73 @@
 <?php
-/** Assert the production mail backend, rather than restoring whatever was there. */
+/**
+ * Put outbound mail back to live SMTP, without touching anything else.
+ *
+ * `mailing_backend` is one array holding the delivery mode AND the SMTP server,
+ * port, auth flag and credentials. Writing ['outBound_option' => 0] over it
+ * therefore does not "set the mode": it replaces the whole array and discards
+ * the Postmark host and credentials with it, leaving CiviCRM told to use SMTP
+ * with no SMTP to use. That happened, and outbound mail was dead until the
+ * settings were recovered from a database backup. Every write here merges.
+ *
+ * Run after any test session that captured mail:
+ *   sudo -u www-data wp --path=/var/www/openarcollective.org eval-file mail-live.php
+ */
+
 civicrm_initialize();
 
-$before = Civi::settings()->get('mailing_backend');
-echo "was: outBound_option = " . ($before['outBound_option'] ?? '?') . "\n";
+define('OPENAR_SNAPSHOT_INCLUDED', TRUE);
+require_once __DIR__ . '/openar-snapshot.php';
+openar_snapshot('mail-live');
 
-Civi::settings()->set('mailing_backend', ['outBound_option' => 0]);
+const OUTBOUND_SMTP = 0;
 
-$after = Civi::settings()->get('mailing_backend');
-echo "now: outBound_option = " . ($after['outBound_option'] ?? '?') . " (0 = live SMTP)\n";
+$before = (array) Civi::settings()->get('mailing_backend');
+echo 'was: outBound_option = ' . ($before['outBound_option'] ?? '?') . "\n";
+
+// Merge, never replace.
+$after = ['outBound_option' => OUTBOUND_SMTP] + $before;
+$after['outBound_option'] = OUTBOUND_SMTP;
+Civi::settings()->set('mailing_backend', $after);
+
+$now = (array) Civi::settings()->get('mailing_backend');
+echo 'now: outBound_option = ' . ($now['outBound_option'] ?? '?') . " (0 = live SMTP)\n";
+
+// Being set to SMTP with no server configured is the failure this file exists
+// to prevent, so it is checked rather than assumed.
+$problems = [];
+if (empty($now['smtpServer'])) {
+  $problems[] = 'smtpServer is empty';
+}
+if (!empty($now['smtpAuth']) && empty($now['smtpPassword'])) {
+  $problems[] = 'smtpAuth is on but there is no password';
+}
+
+if ($problems) {
+  echo "\nWARNING: outbound mail will fail.\n";
+  foreach ($problems as $p) {
+    echo "  {$p}\n";
+  }
+  echo "  Fix under Administer > System Settings > Outbound Email.\n";
+}
+else {
+  echo 'server: ' . $now['smtpServer'] . ':' . ($now['smtpPort'] ?? '?')
+    . ', credentials ' . (!empty($now['smtpPassword']) ? 'present' : 'absent') . "\n";
+}
 
 $spooled = (int) CRM_Core_DAO::singleValueQuery('SELECT COUNT(*) FROM civicrm_mailing_spool');
 echo "\nmessages sitting in the spool: {$spooled}\n";
 if ($spooled) {
-  $d = CRM_Core_DAO::executeQuery('SELECT recipient_email, headers FROM civicrm_mailing_spool ORDER BY id');
-  while ($d->fetch()) {
-    preg_match('/^Subject:\s*(.+)$/mi', (string) $d->headers, $m);
-    echo "  -> " . str_pad((string) $d->recipient_email, 36) . trim($m[1] ?? '') . "\n";
+  $dao = CRM_Core_DAO::executeQuery('SELECT recipient_email, headers FROM civicrm_mailing_spool ORDER BY id');
+  while ($dao->fetch()) {
+    preg_match('/^Subject:\s*(.+)$/mi', (string) $dao->headers, $m);
+    echo '  -> ' . str_pad((string) $dao->recipient_email, 36) . trim($m[1] ?? '') . "\n";
   }
   CRM_Core_DAO::executeQuery('DELETE FROM civicrm_mailing_spool');
-  echo "cleared (all of these are test addresses)\n";
+  echo "cleared\n";
 }
 
 echo "\ncontacts: " . civicrm_api4('Contact', 'get', ['select' => ['row_count'], 'checkPermissions' => FALSE])->count() . "\n";
 foreach (civicrm_api4('Contact', 'get', ['select' => ['id', 'display_name'], 'checkPermissions' => FALSE]) as $c) {
   echo "  #{$c['id']} {$c['display_name']}\n";
 }
-$subs = civicrm_api4('AfformSubmission', 'get', ['select' => ['row_count'], 'checkPermissions' => FALSE])->count();
-echo "form submissions: {$subs}\n";
+echo 'form submissions: ' . civicrm_api4('AfformSubmission', 'get', ['select' => ['row_count'], 'checkPermissions' => FALSE])->count() . "\n";

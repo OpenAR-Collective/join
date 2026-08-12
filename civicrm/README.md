@@ -354,7 +354,7 @@ If you add an agreement to either form, set `input_type: 'CheckBox'` on it.
 
 Every script here that replaces live configuration first calls
 `openar_snapshot()`, which writes the current state of all of it to
-`/home/rob/openar-snapshots/<timestamp>-<script>/`: both form layouts, all ten
+`/var/www/openar-snapshots/<timestamp>-<script>/`: both form layouts, all ten
 message templates, the brand stylesheet, and the custom field definitions.
 
 This exists because the guards are weaker than they look. A guard checks that
@@ -370,19 +370,35 @@ re-run its script, and the edit is gone. Now the previous version is on disk.
 Restoring is a copy:
 
 ```bash
-cp /home/rob/openar-snapshots/<timestamp>-<script>/afformMembershipApplication.aff.html    /var/www/openarcollective.org/wp-content/uploads/civicrm/ang/
+cp /var/www/openar-snapshots/<timestamp>-<script>/afformMembershipApplication.aff.html    /var/www/openarcollective.org/wp-content/uploads/civicrm/ang/
 ```
 
 Nothing prunes them. They are a few hundred kilobytes each.
 
-One-time setup, since the scripts run as www-data and cannot write into rob's
-home:
+One-time setup, as root:
 
 ```bash
-mkdir -p /home/rob/openar-snapshots && chmod 1777 /home/rob/openar-snapshots
+mkdir -p /var/www/openar-snapshots
+chown www-data:www-data /var/www/openar-snapshots
+chmod 750 /var/www/openar-snapshots
 ```
 
-World-writable is deliberate and costs nothing: a snapshot holds only form
-layouts, email templates, a stylesheet and field definitions, every one of which
-is already in this public repository. No credential and no member record is ever
-written to one.
+Owned by www-data, which is what the scripts run as, and outside the document
+root so it is never served. A snapshot holds form layouts, email templates, the
+stylesheet and field definitions, plus settings with credentials redacted.
+
+## mailing_backend is one array, so never write it wholesale
+
+`mailing_backend` holds the delivery mode *and* the SMTP server, port, auth flag
+and credentials, all in one setting. Writing `['outBound_option' => 0]` to it
+does not set the mode: it replaces the array and throws the Postmark host and
+credentials away, leaving CiviCRM instructed to use SMTP with no SMTP configured.
+
+That happened. Outbound mail was dead, silently, and only surfaced when a real
+application produced "There is no valid smtp server setting" in the log instead
+of a confirmation email. The settings were recovered from the pre-upgrade
+database dump.
+
+`mail-live.php` now merges rather than replaces, and checks afterwards that a
+server and credentials are actually present rather than assuming the write
+worked. Test scripts that capture mail must merge too.
