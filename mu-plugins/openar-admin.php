@@ -178,7 +178,7 @@ function openar_admin_page(): void {
     }
   }
 
-  $rows = openar_admin_pending();
+  $pending = openar_admin_pending();
   ?>
   <div class="wrap">
     <h1>OpenAR onboarding</h1>
@@ -199,17 +199,60 @@ function openar_admin_page(): void {
       <div class="notice notice-error is-dismissible"><p><?php echo esc_html($error); ?></p></div>
     <?php endif; ?>
 
-    <h2>Waiting on confirmation</h2>
-    <p class="description">
-      People who filled in a form and have not yet clicked the link in their email.
-      Nothing is written to the contact records until they do, which is why these
-      do not appear under Find Contacts. Links last
-      <?php echo (int) (defined('OPENAR_VERIFY_LIFETIME_DAYS') ? OPENAR_VERIFY_LIFETIME_DAYS : 7); ?> days.
+    <h2>Where everything stands</h2>
+    <p class="description" style="max-width:60em">
+      Both paths pass through the same three states, named and ordered the same
+      way. Members are above the line, Mission Supporters below it.
     </p>
 
-    <?php if (!$rows) : ?>
-      <p><strong>Nobody is waiting.</strong> Every application has either been confirmed or none has been made.</p>
-    <?php else : ?>
+    <table class="widefat striped" style="max-width:60em">
+      <thead>
+        <tr>
+          <th scope="col" style="width:22em">What</th>
+          <th scope="col" style="width:5em;text-align:right">Count</th>
+          <th scope="col">What it means, and where the work is done</th>
+        </tr>
+      </thead>
+      <tbody>
+        <?php foreach (openar_admin_rows($pending) as $i => $r) : ?>
+          <?php
+          $flag = str_starts_with($r['note'], 'ACTION NEEDED:');
+          $note = $flag ? trim(substr($r['note'], strlen('ACTION NEEDED:'))) : $r['note'];
+          $needed = ($r['count'] !== NULL && $r['count'] > 0);
+          // Same break between the two paths as the Dashboard widget.
+          $top = ($i === 3) ? 'border-top:2px solid #c3c4c7;' : '';
+          ?>
+          <tr>
+            <td style="<?php echo $top; ?>">
+              <strong><a href="<?php echo esc_url($r['url']); ?>"><?php echo esc_html($r['label']); ?></a></strong>
+              <?php if (!empty($r['lapsed'])) : ?>
+                <br /><span style="color:#a13b1e"><?php echo (int) $r['lapsed']; ?> lapsed</span>
+              <?php endif; ?>
+            </td>
+            <td style="<?php echo $top; ?>text-align:right;font-size:15px;<?php echo $needed && $flag ? 'color:#a13b1e;font-weight:600' : ''; ?>">
+              <?php echo $r['count'] === NULL ? '&mdash;' : (int) $r['count']; ?>
+            </td>
+            <td style="<?php echo $top; ?>">
+              <?php if ($flag) : ?>
+                <strong style="<?php echo $needed ? 'color:#a13b1e' : ''; ?>">ACTION NEEDED:</strong>
+              <?php endif; ?>
+              <?php echo esc_html($note); ?>
+              <br /><span style="color:#646970"><?php echo esc_html($r['where']); ?>.</span>
+            </td>
+          </tr>
+        <?php endforeach; ?>
+      </tbody>
+    </table>
+
+    <?php if ($pending) : ?>
+      <h2 style="margin-top:2em">Waiting on confirmation</h2>
+      <p class="description" style="max-width:60em">
+        People who filled in a form and have not yet clicked the link in their
+        email. Nothing is written to the contact records until they do, which is
+        why these do not appear under Find Contacts. Links last
+        <?php echo (int) (defined('OPENAR_VERIFY_LIFETIME_DAYS') ? OPENAR_VERIFY_LIFETIME_DAYS : 7); ?> days.
+      </p>
+
       <table class="wp-list-table widefat fixed striped">
         <thead>
           <tr>
@@ -223,7 +266,7 @@ function openar_admin_page(): void {
           </tr>
         </thead>
         <tbody>
-        <?php foreach ($rows as $r) : ?>
+        <?php foreach ($pending as $r) : ?>
           <tr>
             <td><?php echo (int) $r['id']; ?></td>
             <td><strong><?php echo esc_html($r['name']); ?></strong></td>
@@ -250,33 +293,21 @@ function openar_admin_page(): void {
       </table>
     <?php endif; ?>
 
-    <h2 style="margin-top:2em">Where everything else lives</h2>
+    <h2 style="margin-top:2em">Everything else</h2>
     <table class="widefat striped" style="max-width:60em">
       <tbody>
         <tr>
-          <td style="width:16em"><strong>Applications to review</strong></td>
-          <td><a href="<?php echo esc_url(openar_admin_civi_url('civicrm/group/search', 'reset=1&force=1&context=smog&gid=' . (int) openar_admin_group_id('applicants_pending_review'))); ?>">Applicants pending review</a></td>
-        </tr>
-        <tr>
-          <td><strong>Members</strong></td>
-          <td><a href="<?php echo esc_url(openar_admin_civi_url('civicrm/group/search', 'reset=1&force=1&context=smog&gid=' . (int) openar_admin_group_id('members'))); ?>">Members group</a></td>
-        </tr>
-        <tr>
-          <td><strong>Supporters awaiting review</strong></td>
-          <td><a href="<?php echo esc_url(openar_admin_civi_url('civicrm/group/search', 'reset=1&force=1&context=smog&gid=' . (int) openar_admin_group_id('supporters_pending'))); ?>">Mission Supporters pending</a></td>
-        </tr>
-        <tr>
-          <td><strong>Published supporters</strong></td>
-          <td><a href="<?php echo esc_url(openar_admin_civi_url('civicrm/group/search', 'reset=1&force=1&context=smog&gid=' . (int) openar_admin_group_id('supporters_published'))); ?>">Mission Supporters published</a>
-            &mdash; the roster syncs to the website hourly</td>
-        </tr>
-        <tr>
-          <td><strong>All form submissions</strong></td>
+          <td style="width:22em"><strong>All form submissions</strong></td>
           <td><a href="<?php echo esc_url(openar_admin_civi_url('civicrm/admin/afform/submissions', 'reset=1')); ?>">CiviCRM Submissions</a></td>
         </tr>
         <tr>
           <td><strong>Email templates</strong></td>
           <td><a href="<?php echo esc_url(openar_admin_civi_url('civicrm/admin/messageTemplates', 'reset=1')); ?>">Message Templates</a></td>
+        </tr>
+        <tr>
+          <td><strong>Outbound email</strong></td>
+          <td><a href="<?php echo esc_url(openar_admin_civi_url('civicrm/admin/setting/smtp', 'reset=1')); ?>">Outbound Email settings</a>
+            &mdash; leave this on SMTP; anything else stops every confirmation and welcome</td>
         </tr>
       </tbody>
     </table>
@@ -464,6 +495,8 @@ function openar_admin_numbered_members(): int {
  * tells a new reviewer nothing about whether it is theirs to act on, and the
  * two paths run far enough apart that "3 waiting" means different work
  * depending on which one it belongs to.
+ *
+ * Notes get their own line, so each one starts with a capital.
  */
 function openar_admin_dashboard_row(array $row, bool $last = FALSE): void {
   $border = $last ? '' : 'border-bottom:1px solid #f0f0f1;';
@@ -502,6 +535,94 @@ function openar_admin_dashboard_row(array $row, bool $last = FALSE): void {
   <?php
 }
 
+/**
+ * The six things worth counting, in the order they happen to a person.
+ *
+ * Both paths reach the same three states, so they are named and ordered the
+ * same way: awaiting confirmation, waiting on a reviewer, done. The symmetry is
+ * the point. It draws a clean line between members and Mission Supporters and
+ * makes it obvious at a glance which side of the house a number belongs to.
+ *
+ * Defined once and rendered twice, by the Dashboard widget and by the Tools
+ * screen. They said different things for a while, because there were two copies
+ * of these labels and only one got updated.
+ *
+ * @param array|null $pending Pass an already-fetched list to avoid a second
+ *   query when the caller has one.
+ */
+function openar_admin_rows(?array $pending = NULL): array {
+  $pending ??= openar_admin_pending();
+
+  $of = fn(string $kind) => array_filter($pending, fn($r) => $r['kind'] === $kind);
+  $lapsed = fn(array $rows) => count(array_filter($rows, fn($r) => !$r['live']));
+
+  $screen = admin_url('tools.php?page=' . OPENAR_ADMIN_SLUG);
+  $group = fn(string $name) => openar_admin_civi_url('civicrm/group/search',
+    'reset=1&force=1&context=smog&gid=' . openar_admin_group_id($name));
+
+  $members = $of('membership');
+  $supporters = $of('supporter');
+
+  return [
+    [
+      'side' => 'member',
+      'label' => 'Members awaiting confirmation',
+      'note' => 'Email confirmation link not clicked',
+      'count' => count($members),
+      'lapsed' => $lapsed($members),
+      'url' => $screen,
+      // Every "where" names a destination rather than describing the page it is
+      // on, because these rows render in two places and are read when the count
+      // is zero and there is nothing listed anywhere.
+      'where' => 'The OpenAR onboarding screen, which has a button to send a fresh link',
+    ],
+    [
+      'side' => 'member',
+      'label' => 'Member applications to review',
+      'note' => 'ACTION NEEDED: verify AR professional credentials',
+      'count' => openar_admin_group_count('applicants_pending_review'),
+      'url' => $group('applicants_pending_review'),
+      'where' => 'Applicants pending review, in CiviCRM',
+    ],
+    [
+      'side' => 'member',
+      'label' => 'Members',
+      'note' => 'Individuals issued a member ID',
+      'count' => openar_admin_group_count('members'),
+      'url' => $group('members'),
+      'where' => 'Members group, in CiviCRM',
+    ],
+    [
+      'side' => 'supporter',
+      'label' => 'Mission Supporters awaiting confirmation',
+      'note' => 'Email confirmation link not clicked',
+      'count' => count($supporters),
+      'lapsed' => $lapsed($supporters),
+      'url' => $screen,
+      // Every "where" names a destination rather than describing the page it is
+      // on, because these rows render in two places and are read when the count
+      // is zero and there is nothing listed anywhere.
+      'where' => 'The OpenAR onboarding screen, which has a button to send a fresh link',
+    ],
+    [
+      'side' => 'supporter',
+      'label' => 'Mission Supporters to review',
+      'note' => 'ACTION NEEDED: verify company legitimacy',
+      'count' => openar_admin_group_count('supporters_pending'),
+      'url' => $group('supporters_pending'),
+      'where' => 'Mission Supporters pending, in CiviCRM',
+    ],
+    [
+      'side' => 'supporter',
+      'label' => 'Mission Supporters',
+      'note' => 'Companies publicly listed as Mission Supporters',
+      'count' => openar_admin_group_count('supporters_published'),
+      'url' => $group('supporters_published'),
+      'where' => 'Mission Supporters published, in CiviCRM. The roster syncs to the website hourly',
+    ],
+  ];
+}
+
 function openar_admin_dashboard_render(): void {
   if (!function_exists('civi_wp')) {
     echo '<p>CiviCRM is not available.</p>';
@@ -509,58 +630,11 @@ function openar_admin_dashboard_render(): void {
   }
 
   $pending = openar_admin_pending();
-  $memberPending = array_filter($pending, fn($r) => $r['kind'] === 'membership');
-  $supporterPending = array_filter($pending, fn($r) => $r['kind'] === 'supporter');
-
-  $lapsed = fn(array $rows) => count(array_filter($rows, fn($r) => !$r['live']));
+  $rows = openar_admin_rows($pending);
 
   $screen = admin_url('tools.php?page=' . OPENAR_ADMIN_SLUG);
-  $group = fn(string $name) => openar_admin_civi_url('civicrm/group/search',
-    'reset=1&force=1&context=smog&gid=' . openar_admin_group_id($name));
-
   $members = openar_admin_group_count('members');
   $numbered = openar_admin_numbered_members();
-
-  $rows = [
-    [
-      'label' => 'Members awaiting confirmation',
-      'note' => 'email confirmation link not clicked',
-      'count' => count($memberPending),
-      'lapsed' => $lapsed($memberPending),
-      'url' => $screen,
-    ],
-    [
-      'label' => 'Member applications to review',
-      'note' => 'ACTION NEEDED: verify AR professional credentials',
-      'count' => openar_admin_group_count('applicants_pending_review'),
-      'url' => $group('applicants_pending_review'),
-    ],
-    [
-      'label' => 'Members',
-      'note' => 'individuals issued a member ID',
-      'count' => $members,
-      'url' => $group('members'),
-    ],
-    [
-      'label' => 'Mission Supporters awaiting confirmation',
-      'note' => 'email confirmation link not clicked',
-      'count' => count($supporterPending),
-      'lapsed' => $lapsed($supporterPending),
-      'url' => $screen,
-    ],
-    [
-      'label' => 'Mission Supporters to review',
-      'note' => 'ACTION NEEDED: verify company legitimacy',
-      'count' => openar_admin_group_count('supporters_pending'),
-      'url' => $group('supporters_pending'),
-    ],
-    [
-      'label' => 'Mission Supporters',
-      'note' => 'companies publicly listed as Mission Supporters',
-      'count' => openar_admin_group_count('supporters_published'),
-      'url' => $group('supporters_published'),
-    ],
-  ];
 
   $mailProblem = openar_admin_mail_problem();
   ?>
@@ -572,7 +646,14 @@ function openar_admin_dashboard_render(): void {
   <?php endif; ?>
   <ul style="margin:0">
     <?php foreach ($rows as $i => $row) : ?>
-      <?php openar_admin_dashboard_row($row, $i === count($rows) - 1); ?>
+      <?php
+      // A gap where the two paths meet, so the symmetry is visible rather than
+      // something you have to read six labels to work out.
+      if ($i > 0 && $row['side'] !== $rows[$i - 1]['side']) {
+        echo '<li style="height:8px"></li>';
+      }
+      openar_admin_dashboard_row($row, $i === count($rows) - 1);
+      ?>
     <?php endforeach; ?>
   </ul>
 

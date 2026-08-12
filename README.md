@@ -78,22 +78,31 @@ button to send a fresh one. It also links to the review queues, the members
 group, and the supporter groups, so the day-to-day work has one starting point.
 
 The same figures appear as a **Dashboard widget**, so they are seen on login
-rather than only when someone remembers to look. It counts the two paths
-separately, because "3 waiting" means different work depending on which one it
-belongs to:
+rather than only when someone remembers to look.
+
+### The six states
+
+Both paths reach the same three states, so they are named and ordered the same
+way. The symmetry is the point: it draws a clean line between members and
+Mission Supporters and makes it obvious which side of the house a number belongs
+to. "3 waiting" means different work depending on which one it is.
 
 | | |
 |---|---|
-| Members awaiting confirmation | email confirmation link not clicked |
-| Member applications to review | verify AR professional credentials |
-| Members | individuals issued a member ID |
-| Mission Supporters awaiting confirmation | email confirmation link not clicked |
-| Mission Supporters to review | verify company legitimacy |
-| Mission Supporters | companies publicly listed as Mission Supporters |
+| Members awaiting confirmation | Email confirmation link not clicked |
+| Member applications to review | Verify AR professional credentials |
+| Members | Individuals issued a member ID |
+| Mission Supporters awaiting confirmation | Email confirmation link not clicked |
+| Mission Supporters to review | Verify company legitimacy |
+| Mission Supporters | Companies publicly listed as Mission Supporters |
 
 The two review rows are marked **ACTION NEEDED** in red, but only while the
 count is above zero. A warning that is present every day is read as decoration
 within a week.
+
+These six are defined once, in `openar_admin_rows()`, and rendered twice. The
+widget and the Tools screen said different things for a while because there were
+two copies of the labels and only one got updated.
 
 Both screens carry a red warning when outbound email is not actually being
 delivered, which is the failure that hides best: everything appears to work and
