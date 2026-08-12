@@ -60,6 +60,22 @@ $fields = [
     'weight' => 7,
   ],
   [
+    // Optional, and free text rather than a list of US states. Half the
+    // plausible answers are Delaware, England and Wales, Ontario or Ireland,
+    // and a state dropdown would quietly tell everyone else they are not
+    // expected here. A reviewer who has a name and a jurisdiction can settle
+    // "is this a real organization" with one public records search; a reviewer
+    // with a name alone cannot settle it at all.
+    'name' => 'registered_in',
+    'label' => 'Where the organization is registered',
+    'data_type' => 'String',
+    'html_type' => 'Text',
+    'is_required' => FALSE,
+    'is_searchable' => FALSE,
+    'text_length' => 128,
+    'weight' => 8,
+  ],
+  [
     'name' => 'signer_name',
     'label' => 'Your name',
     'data_type' => 'String',

@@ -49,6 +49,15 @@ $website = supporter_token('website_url');
 $signerName = supporter_token('signer_name');
 $signerTitle = supporter_token('signer_title');
 $signerEmail = supporter_token('signer_email');
+$registeredIn = supporter_token('registered_in');
+
+// The review screen, not the CiviCRM record: it carries these details with
+// Approve and Decline buttons, so publishing is one click from this email.
+// A link to a screen, never a link that publishes, because a URL that put an
+// organization on a public page on being fetched would be triggered by every
+// link scanner between here and the reviewer's inbox.
+$review = 'https://join.openarcollective.org/wp-admin/tools.php?page=openar-onboarding'
+  . '&review={contact.id}#applicant-{contact.id}';
 
 // wp-admin, not the front end. CiviCRM renders inside the site theme on the
 // basepage, where the brand stylesheet is scoped to public forms only and the
@@ -114,11 +123,15 @@ A Mission Supporter Statement of Support has been confirmed and is waiting for r
 Organization:  {contact.organization_name}
 Trade name:    $tradeName
 Website:       $website
+Registered in: $registeredIn
 Signer:        $signerName
 Title:         $signerTitle
 Email:         $signerEmail
 
-Review the record:
+Approve or decline, on one screen:
+$review
+
+The full CiviCRM record, if you need it:
 $view
 
 The signer has confirmed their email address, so the address is known good. What
@@ -126,12 +139,17 @@ remains is confirming they can bind the organization. A business address on the
 organization's own domain is reasonable evidence. Anything else is worth a
 reply-to-confirm before publishing.
 
-**Approving puts this organization on a public page.** Add them to
-"Mission Supporters - published" and the roster on openarcollective.org picks
-them up on the next sync, with no further step. Withdrawals work the same way in
-reverse: remove them from that group and the next sync takes them off.
+**Approving puts this organization on a public page.** The Approve button
+publishes it and the roster on openarcollective.org picks it up on the next
+hourly sync, with no further step. Withdrawing works the same way in reverse:
+remove the organization from "Mission Supporters - published" and the next sync
+takes it off.
 
-The OpenAR Collective
+--
+Sent automatically by the OpenAR onboarding workflow when the signer confirmed
+their email address.
+
+The OpenAR Collective Bot
 TXT,
   'msg_html' => <<<HTML
 <p>A Mission Supporter Statement of Support has been confirmed and is waiting for review.</p>
@@ -140,12 +158,15 @@ TXT,
   <tr><td><strong>Organization</strong></td><td>{contact.organization_name}</td></tr>
   <tr><td><strong>Trade name</strong></td><td>$tradeName</td></tr>
   <tr><td><strong>Website</strong></td><td>$website</td></tr>
+  <tr><td><strong>Registered in</strong></td><td>$registeredIn</td></tr>
   <tr><td><strong>Signer</strong></td><td>$signerName</td></tr>
   <tr><td><strong>Title</strong></td><td>$signerTitle</td></tr>
   <tr><td><strong>Email</strong></td><td>$signerEmail</td></tr>
 </table>
 
-<p><a href="$view">Review the record</a></p>
+<p><a href="$review" style="display:inline-block;padding:12px 22px;background:#e8a020;color:#161410;font-family:Arial,Helvetica,sans-serif;font-weight:600;text-decoration:none;border-radius:3px;">Review this statement</a></p>
+
+<p style="font-size:13px;">That screen shows these details with an Approve button, and a box for the reason if you decline. The <a href="$view">full CiviCRM record</a> is there if you need it.</p>
 
 <p>The signer has confirmed their email address, so the address is known good.
 What remains is confirming they can bind the organization. A business address on
@@ -153,12 +174,15 @@ the organization's own domain is reasonable evidence. Anything else is worth a
 reply-to-confirm before publishing.</p>
 
 <p style="padding:10px 14px;border-left:3px solid #e8a020;background:#fdf6e7;">
-<strong>Approving puts this organization on a public page.</strong> Add them to
-<strong>Mission Supporters - published</strong> and the roster on
-openarcollective.org picks them up on the next sync, with no further step.
-Withdrawals work the same way in reverse.</p>
+<strong>Approving puts this organization on a public page.</strong> The Approve
+button publishes it and the roster on openarcollective.org picks it up on the
+next hourly sync. Withdrawing works the same way in reverse: remove it from
+<strong>Mission Supporters - published</strong>.</p>
 
-<p>The OpenAR Collective</p>
+<p style="margin-top:26px;padding-top:14px;border-top:1px solid #e3ded3;font-size:12px;color:#5c564c;">
+Sent automatically by the OpenAR onboarding workflow when the signer confirmed
+their email address.<br /><strong>The OpenAR Collective Bot</strong>
+</p>
 HTML,
 ];
 

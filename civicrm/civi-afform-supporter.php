@@ -51,6 +51,7 @@ $layout = <<<'SUPPORTER_LAYOUT'
          name read as a note about the trade name alone. -->
     <p class="description">The name shown on the Foundation&rsquo;s public roster at <a href="https://openarcollective.org/supporters" target="_blank" rel="noopener">openarcollective.org/supporters</a> will be your trade name, if provided. If no trade name is provided, your legal name will be used instead.</p>
     <af-field name="MissionSupporter.website_url" defn="{required: false, label: 'Website'}" />
+    <af-field name="MissionSupporter.registered_in" defn="{required: false, label: 'Where the organization is registered', help_post: 'For example, Texas, Delaware, or England and Wales. This helps us confirm the organization exists when we review your statement, and is never published.'}" />
     <h3 class="oar-h">About you</h3>
     <div class="af-container af-layout-cols2">
       <af-field name="MissionSupporter.signer_name" defn="{required: true, label: 'Your name'}" />

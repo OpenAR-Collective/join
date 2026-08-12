@@ -158,7 +158,7 @@ function openar_admin_decide(int $contactId, string $action, string $reason = ''
   civi_wp()->initialize();
 
   $who = civicrm_api4('Contact', 'get', [
-    'select' => ['display_name', 'is_deleted'],
+    'select' => ['display_name', 'is_deleted', 'contact_type'],
     'where' => [['id', '=', $contactId]],
     'checkPermissions' => FALSE,
   ])->first();
@@ -168,13 +168,24 @@ function openar_admin_decide(int $contactId, string $action, string $reason = ''
   }
   $name = $who['display_name'];
 
+  // Organizations travel the supporter path, individuals the membership one.
+  // The contact type decides, so a reviewer never picks the wrong one and the
+  // two queues cannot be crossed by a stray form post.
+  $supporter = ($who['contact_type'] === 'Organization');
+
   if ($action === 'approve') {
-    if (openar_in_group($contactId, OPENAR_MEMBERS_GROUP)) {
-      return "{$name} was already a member, so nothing changed.";
+    $target = $supporter ? OPENAR_SUPPORTERS_PUBLISHED_GROUP : OPENAR_MEMBERS_GROUP;
+    if (openar_in_group($contactId, $target)) {
+      return $supporter
+        ? "{$name} was already published, so nothing changed."
+        : "{$name} was already a member, so nothing changed.";
     }
-    openar_add_to_group($contactId, OPENAR_MEMBERS_GROUP);
-    return "{$name} is now a member. Their welcome email, member number and "
-      . 'Discord link have gone out.';
+    openar_add_to_group($contactId, $target);
+    return $supporter
+      ? "{$name} is published. The signer has been told, and the roster on "
+        . 'openarcollective.org picks it up on the next hourly sync.'
+      : "{$name} is now a member. Their welcome email, member number and "
+        . 'Discord link have gone out.';
   }
 
   if ($action === 'decline') {
@@ -187,14 +198,80 @@ function openar_admin_decide(int $contactId, string $action, string $reason = ''
     // the first attempt rather than firing the "no reason recorded" notice.
     civicrm_api4('Contact', 'update', [
       'where' => [['id', '=', $contactId]],
-      'values' => ['Membership.decline_reason' => $reason],
+      'values' => [($supporter ? 'MissionSupporter' : 'Membership') . '.decline_reason' => $reason],
       'checkPermissions' => FALSE,
     ]);
-    openar_add_to_group($contactId, OPENAR_DECLINED_GROUP);
+    openar_add_to_group($contactId,
+      $supporter ? OPENAR_SUPPORTERS_DECLINED_GROUP : OPENAR_DECLINED_GROUP);
     return "{$name} has been declined, and the reason you wrote has been emailed to them.";
   }
 
   return '';
+}
+
+/**
+ * Organizations waiting on a person, with what the reviewer needs to decide.
+ *
+ * Approving one puts a company's name on a public web page, which is a heavier
+ * action than admitting an individual, so the screen shows the evidence a
+ * reviewer would otherwise go looking for: the website, the registered
+ * jurisdiction, and whether the signer's address is on the organization's own
+ * domain.
+ */
+function openar_admin_supporter_queue(): array {
+  if (!function_exists('civi_wp')) {
+    return [];
+  }
+  civi_wp()->initialize();
+
+  $gid = openar_admin_group_id(defined('OPENAR_SUPPORTERS_PENDING_GROUP')
+    ? OPENAR_SUPPORTERS_PENDING_GROUP : 'supporters_pending');
+  if (!$gid) {
+    return [];
+  }
+
+  $ids = [];
+  foreach (civicrm_api4('GroupContact', 'get', [
+    'select' => ['contact_id'],
+    'where' => [
+      ['group_id', '=', $gid],
+      ['status', '=', 'Added'],
+      ['contact_id.is_deleted', '=', FALSE],
+    ],
+    'checkPermissions' => FALSE,
+  ]) as $r) {
+    $ids[] = (int) $r['contact_id'];
+  }
+  if (!$ids) {
+    return [];
+  }
+
+  $rows = [];
+  foreach (civicrm_api4('Contact', 'get', [
+    'select' => [
+      'id', 'display_name', 'organization_name', 'created_date',
+      'MissionSupporter.trade_name', 'MissionSupporter.website_url',
+      'MissionSupporter.registered_in', 'MissionSupporter.signer_name',
+      'MissionSupporter.signer_title', 'MissionSupporter.signer_email',
+      'MissionSupporter.statement_version', 'MissionSupporter.supporter_notes',
+    ],
+    'where' => [['id', 'IN', $ids]],
+    'orderBy' => ['created_date' => 'ASC'],
+    'checkPermissions' => FALSE,
+  ]) as $c) {
+    // The cheapest signal a reviewer has, worked out here rather than left for
+    // them to eyeball: does the signer's address sit on the organization's own
+    // domain? It is not proof, but its absence is worth a second look.
+    $site = strtolower((string) ($c['MissionSupporter.website_url'] ?? ''));
+    $host = (string) parse_url($site && !str_contains($site, '//') ? "https://{$site}" : $site, PHP_URL_HOST);
+    $host = preg_replace('/^www\./', '', $host);
+    $mailDomain = strtolower(substr(strrchr((string) ($c['MissionSupporter.signer_email'] ?? ''), '@') ?: '', 1));
+    $c['domain_matches'] = ($host !== '' && $mailDomain !== '' && $host === $mailDomain);
+    $c['mail_domain'] = $mailDomain;
+    $rows[] = $c;
+  }
+
+  return $rows;
 }
 
 /** Pending submissions, with the applicant dug out of the data blob. */
@@ -319,6 +396,7 @@ function openar_admin_page(): void {
 
   $pending = openar_admin_pending();
   $queue = openar_admin_review_queue();
+  $supporters = openar_admin_supporter_queue();
   ?>
   <div class="wrap">
     <h1>OpenAR onboarding</h1>
@@ -448,6 +526,105 @@ function openar_admin_page(): void {
               <input type="hidden" name="openar_decide" value="decline" />
               <textarea name="openar_reason" rows="2" style="width:100%"
                 placeholder="Reason, in words you are content for them to read. Required to decline."></textarea>
+              <button type="submit" class="button" style="margin-top:6px">Decline</button>
+            </form>
+          </div>
+
+          <p style="margin:10px 0 0">
+            <a href="<?php echo esc_url(openar_admin_civi_url('civicrm/contact/view', 'reset=1&cid=' . $cid)); ?>">Open the full record in CiviCRM</a>
+          </p>
+        </div>
+      <?php endforeach; ?>
+    <?php endif; ?>
+
+    <?php if ($supporters) : ?>
+      <h2 style="margin-top:2em">Statements of Support to review</h2>
+      <p class="description" style="max-width:60em">
+        Approving one of these puts the organization's name on a public page at
+        openarcollective.org/supporters, which is a heavier action than
+        admitting an individual. Declining sends the reason you write to the
+        signer.
+      </p>
+
+      <?php foreach ($supporters as $s) : ?>
+        <?php
+        $cid = (int) $s['id'];
+        $focus = ((int) ($_GET['review'] ?? 0) === $cid);
+        $site = (string) ($s['MissionSupporter.website_url'] ?? '');
+        $siteUrl = $site && !preg_match('#^https?://#i', $site) ? "https://{$site}" : $site;
+        ?>
+        <div id="applicant-<?php echo $cid; ?>" class="card" style="max-width:60em;padding:16px 20px;margin:14px 0;<?php echo $focus ? 'border-left:4px solid #e8a020;' : ''; ?>">
+          <h3 style="margin:0 0 4px"><?php echo esc_html($s['organization_name'] ?: $s['display_name']); ?></h3>
+
+          <table class="widefat striped" style="margin:10px 0;">
+            <tbody>
+              <?php if (!empty($s['MissionSupporter.trade_name'])) : ?>
+                <tr>
+                  <td style="width:14em"><strong>Trade name</strong></td>
+                  <td><?php echo esc_html($s['MissionSupporter.trade_name']); ?>
+                    &nbsp;<span style="color:#646970">this is what the roster will show</span></td>
+                </tr>
+              <?php endif; ?>
+              <tr>
+                <td style="width:14em"><strong>Website</strong></td>
+                <td>
+                  <?php if ($site) : ?>
+                    <a href="<?php echo esc_url($siteUrl); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html($site); ?></a>
+                  <?php else : ?>
+                    (not supplied)
+                  <?php endif; ?>
+                </td>
+              </tr>
+              <tr>
+                <td><strong>Registered in</strong></td>
+                <td>
+                  <?php if (!empty($s['MissionSupporter.registered_in'])) : ?>
+                    <?php echo esc_html($s['MissionSupporter.registered_in']); ?>
+                    &nbsp;<span style="color:#646970">searchable in that jurisdiction's public register</span>
+                  <?php else : ?>
+                    (not supplied)
+                  <?php endif; ?>
+                </td>
+              </tr>
+              <tr>
+                <td><strong>Signed by</strong></td>
+                <td><?php echo esc_html($s['MissionSupporter.signer_name']); ?>,
+                  <?php echo esc_html($s['MissionSupporter.signer_title']); ?></td>
+              </tr>
+              <tr>
+                <td><strong>Signer's email</strong></td>
+                <td>
+                  <a href="mailto:<?php echo esc_attr($s['MissionSupporter.signer_email']); ?>"><?php echo esc_html($s['MissionSupporter.signer_email']); ?></a>
+                  <?php if ($s['domain_matches']) : ?>
+                    <span style="color:#186a3b">&nbsp;&mdash; on the organization's own domain</span>
+                  <?php elseif (!empty($s['mail_domain'])) : ?>
+                    <span style="color:#a13b1e">&nbsp;&mdash; not the website's domain</span>
+                  <?php endif; ?>
+                </td>
+              </tr>
+              <?php if (!empty($s['MissionSupporter.supporter_notes'])) : ?>
+                <tr>
+                  <td><strong>Supporter notes</strong></td>
+                  <td style="white-space:pre-wrap"><?php echo esc_html($s['MissionSupporter.supporter_notes']); ?></td>
+                </tr>
+              <?php endif; ?>
+            </tbody>
+          </table>
+
+          <div style="display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap">
+            <form method="post" style="margin:0">
+              <?php wp_nonce_field("openar_decide_{$cid}"); ?>
+              <input type="hidden" name="openar_contact" value="<?php echo $cid; ?>" />
+              <input type="hidden" name="openar_decide" value="approve" />
+              <button type="submit" class="button button-primary">Approve and publish</button>
+            </form>
+
+            <form method="post" style="margin:0;flex:1;min-width:22em">
+              <?php wp_nonce_field("openar_decide_{$cid}"); ?>
+              <input type="hidden" name="openar_contact" value="<?php echo $cid; ?>" />
+              <input type="hidden" name="openar_decide" value="decline" />
+              <textarea name="openar_reason" rows="2" style="width:100%"
+                placeholder="Reason, in words you are content for the signer to read. Required to decline."></textarea>
               <button type="submit" class="button" style="margin-top:6px">Decline</button>
             </form>
           </div>

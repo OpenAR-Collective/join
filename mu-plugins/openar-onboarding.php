@@ -176,6 +176,9 @@ const OPENAR_SUPPORTERS_PUBLISHED_GROUP = 'supporters_published';
 const OPENAR_SUPPORTER_REVIEW_TEMPLATE = 'OpenAR - New Statement of Support for review';
 const OPENAR_SUPPORTER_LISTED_TEMPLATE = 'OpenAR - Your organization is now listed';
 const OPENAR_SUPPORTER_LISTED_ACTIVITY = 'Mission Supporter listing confirmed';
+const OPENAR_SUPPORTERS_DECLINED_GROUP = 'supporters_declined';
+const OPENAR_SUPPORTER_DECLINE_TEMPLATE = 'OpenAR - Statement of Support declined';
+const OPENAR_SUPPORTER_DECLINE_ACTIVITY = 'Mission Supporter statement declined';
 
 /** The Statement version a signature is bound to. Bump when the Statement changes. */
 const OPENAR_STATEMENT_VERSION = '1.2';
@@ -596,6 +599,95 @@ function openar_submission_entity_ids(array $data): array {
  * weight than it does for an individual.
  * ---------------------------------------------------------------------- */
 
+/**
+ * A Statement of Support was reviewed and not published. Tell the signer.
+ *
+ * The mirror of openar_decline_applicant. A signer put their organization's
+ * name to a public statement, so silence is a worse answer than no.
+ */
+function openar_decline_supporter(int $contactId): void {
+  $org = \Civi\Api4\Contact::get(FALSE)
+    ->addSelect('id', 'display_name', 'organization_name', 'contact_type',
+      'MissionSupporter.signer_email', 'MissionSupporter.signer_name',
+      'MissionSupporter.decline_reason', 'MissionSupporter.declined_date')
+    ->addWhere('id', '=', $contactId)
+    ->execute()->first();
+
+  if (!$org || $org['contact_type'] !== 'Organization') {
+    return;
+  }
+
+  // Out of the queue either way. A decision has been made, whatever happens to
+  // the email below.
+  openar_remove_from_group($contactId, OPENAR_SUPPORTERS_PENDING_GROUP);
+
+  if (openar_supporter_already_declined($contactId)) {
+    return;
+  }
+
+  $reason = trim((string) ($org['MissionSupporter.decline_reason'] ?? ''));
+  $email = trim((string) ($org['MissionSupporter.signer_email'] ?? ''));
+
+  if ($reason === '' || $email === '') {
+    \Civi::log()->warning(
+      'OpenAR onboarding: supporter {cid} declined but nothing was sent ({why})',
+      ['cid' => $contactId, 'why' => $reason === '' ? 'no reason written' : 'no signer address']);
+    return;
+  }
+
+  $template = \Civi\Api4\MessageTemplate::get(FALSE)
+    ->addSelect('id')
+    ->addWhere('msg_title', '=', OPENAR_SUPPORTER_DECLINE_TEMPLATE)
+    ->addWhere('is_active', '=', TRUE)
+    ->execute()->first();
+
+  if (!$template) {
+    \Civi::log()->error('OpenAR onboarding: supporter decline template not found');
+    return;
+  }
+
+  [$fromName, $fromEmail] = \CRM_Core_BAO_Domain::getNameAndEmail();
+
+  \CRM_Core_BAO_MessageTemplate::sendTemplate([
+    'messageTemplateID' => $template['id'],
+    'from' => sprintf('%s <%s>', $fromName, $fromEmail),
+    'toEmail' => $email,
+    'contactId' => $contactId,
+    'tokenContext' => ['contactId' => $contactId],
+    'tplParams' => [
+      'firstName' => $org['MissionSupporter.signer_name'] ?: 'there',
+      'organizationName' => $org['organization_name'] ?: $org['display_name'],
+      'reason' => $reason,
+    ],
+  ]);
+
+  \Civi\Api4\Activity::create(FALSE)
+    ->addValue('activity_type_id:name', 'Follow up')
+    ->addValue('subject', OPENAR_SUPPORTER_DECLINE_ACTIVITY)
+    ->addValue('target_contact_id', [$contactId])
+    ->addValue('source_contact_id', $contactId)
+    ->addValue('status_id:name', 'Completed')
+    ->addValue('details', 'Reason sent to ' . $email)
+    ->execute();
+
+  // Stamped last, so the contact edit this fires finds the decline already sent.
+  if (empty($org['MissionSupporter.declined_date'])) {
+    \Civi\Api4\Contact::update(FALSE)
+      ->addWhere('id', '=', $contactId)
+      ->addValue('MissionSupporter.declined_date', date('Y-m-d H:i:s'))
+      ->execute();
+  }
+}
+
+/** Has this organization already been told? Sending twice is worse than late. */
+function openar_supporter_already_declined(int $contactId): bool {
+  return (bool) \Civi\Api4\Activity::get(FALSE)
+    ->selectRowCount()
+    ->addWhere('subject', '=', OPENAR_SUPPORTER_DECLINE_ACTIVITY)
+    ->addWhere('target_contact_id', '=', $contactId)
+    ->execute()->count();
+}
+
 /** A Statement of Support was confirmed. Queue the organization for review. */
 function openar_handle_new_supporter(int $contactId): void {
   $org = \Civi\Api4\Contact::get(FALSE)
@@ -993,6 +1085,7 @@ function openar_onboarding_group_commit(string $op, string $objectName, $objectI
       OPENAR_MEMBERS_GROUP => 'openar_admit_member',
       OPENAR_DECLINED_GROUP => 'openar_decline_applicant',
       OPENAR_SUPPORTERS_PUBLISHED_GROUP => 'openar_publish_supporter',
+      OPENAR_SUPPORTERS_DECLINED_GROUP => 'openar_decline_supporter',
     ];
 
     $groupId = NULL;
