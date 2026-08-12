@@ -92,10 +92,10 @@ $apiParams = [
   'select' => [
     'Membership.member_number',
     'sort_name',
+    'job_title',
     'Membership.employer_affiliation',
     'email_primary.email',
     'Membership.email_confirmed_date',
-    'Membership.discord_user_id',
     'Membership.linkedin_url',
   ],
   'orderBy' => [],
@@ -165,10 +165,19 @@ $displayValues = [
       $col('sort_name', 'Name', [
         'link' => ['entity' => 'Contact', 'action' => 'view', 'target' => '_blank'],
       ]),
+      $col('job_title', 'Title'),
       $col('Membership.employer_affiliation', 'Employer or affiliation'),
       $col('email_primary.email', 'Email'),
       $col('Membership.email_confirmed_date', 'Confirmed'),
-      $col('Membership.discord_user_id', 'Discord'),
+      // The whole point of storing a LinkedIn profile is that a reviewer can
+      // open it, so the cell is the link rather than a URL to copy. The text
+      // is rewritten because a full profile URL is long enough to set the
+      // column width for the entire table.
+      $col('Membership.linkedin_url', 'LinkedIn', [
+        'link' => ['path' => '[Membership.linkedin_url]', 'target' => '_blank'],
+        'rewrite' => 'Profile',
+        'sortable' => FALSE,
+      ]),
     ],
   ],
 ];
