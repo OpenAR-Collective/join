@@ -55,7 +55,7 @@ There are a few things the Foundation asks of everyone, and they exist so the sp
 
 * Treat all participants with respect. Harassment, discrimination, personal attacks, and intimidation are prohibited.
 
-* Criticism of the Foundation, its board, its software, or its published positions is never a violation of those standards and will never affect your participation. Say what you think.
+Criticism of the Foundation, its board, its software, or its published positions is never a violation of those standards and will never affect your participation. Say what you think.
 
 The full terms are at https://openarcollective.org/policies/community-programs-and-standards/
 
@@ -87,9 +87,10 @@ $html = <<<'HTML'
 <li style="margin-bottom:10px;">Never share a consumer's personal or account information in a Foundation space.</li>
 <li style="margin-bottom:10px;">Remain cognizant of antitrust concerns. Many members compete with one another, so Foundation spaces are never used to discuss prices, fees, rates, terms of service, allocation of markets or customers, or refusal to deal.</li>
 <li style="margin-bottom:10px;">Vendors are welcome as practitioners, but commercial solicitation is not.</li>
-<li style="margin-bottom:10px;">Treat all participants with respect. Harassment, discrimination, personal attacks, and intimidation are prohibited.</li>
-<li>Criticism of the Foundation, its board, its software, or its published positions is never a violation of those standards and will never affect your participation. Say what you think.</li>
+<li>Treat all participants with respect. Harassment, discrimination, personal attacks, and intimidation are prohibited.</li>
 </ul>
+
+<p>Criticism of the Foundation, its board, its software, or its published positions is never a violation of those standards and will never affect your participation. Say what you think.</p>
 
 <p>The full terms are in the <a href="https://openarcollective.org/policies/community-programs-and-standards/">Community Programs and Standards Policy</a>.</p>
 
