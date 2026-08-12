@@ -17,44 +17,44 @@ openar_snapshot(basename(__FILE__, '.php'));
 
 use Civi\Api4\MessageTemplate;
 
+require_once __DIR__ . '/openar-signature.php';
+
 $templates = [];
 
 /* --------------------------------------------------------------- decline -- */
 
+// The decision is stated in the second sentence on purpose. Softening the news
+// by burying it makes the reader hunt for it, and finding it that way is worse
+// than being told plainly. What comes after is where the warmth belongs.
 $templates[] = [
   'msg_title' => 'OpenAR - Membership application declined',
   'msg_subject' => 'Your membership application to the OpenAR Collective',
+  'closing' => 'With thanks for your interest',
   'msg_text' => <<<'TEXT'
 Hello {$firstName},
 
-The Foundation has reviewed your membership application and declined it.
+Thank you for applying, and for the time it took you. I am sorry to tell you that the Foundation has not approved your application.
 
 {$reason}
 
-You can ask the Board to review that decision. Write to {$appealInbox}, say why you think it was wrong, and it will be put to the Board. Under the Membership Application you have one appeal.
+That is a decision about one application. It is not a judgment of you or of your work, and it is not permanent. If we have misread something, or if your circumstances change, write and tell us and we will look again.
 
-If we have misread something, or if your circumstances have changed, tell us and we will look again.
+You can also ask the Board to review the decision. Write to {$appealInbox}, say why you think it was wrong, and it will be put to the Board. Under the Membership Application you have one appeal.
 
-None of this affects your access to the Foundation's work. Everything the Foundation publishes is free on openarcollective.org, with no account, no membership, and no sign-in, and that does not change.
-
-The Open Accounts Receivable Collective Foundation
-openarcollective.org
+None of this touches your access to the Foundation's work. Everything the Foundation publishes is free on openarcollective.org, with no account, no membership, and no sign-in. You are as welcome to use it today as you were yesterday.
 TEXT,
   'msg_html' => <<<'HTML'
 <p>Hello {$firstName},</p>
 
-<p>The Foundation has reviewed your membership application and declined it.</p>
+<p>Thank you for applying, and for the time it took you. I am sorry to tell you that the Foundation has not approved your application.</p>
 
 <p style="padding:12px 16px;border-left:3px solid #b8b0a4;background:#f6f4f0;">{$reason}</p>
 
-<p>You can ask the Board to review that decision. Write to <a href="mailto:{$appealInbox}">{$appealInbox}</a>, say why you think it was wrong, and it will be put to the Board. Under the Membership Application you have one appeal.</p>
+<p>That is a decision about one application. It is not a judgment of you or of your work, and it is not permanent. If we have misread something, or if your circumstances change, write and tell us and we will look again.</p>
 
-<p>If we have misread something, or if your circumstances have changed, tell us and we will look again.</p>
+<p>You can also ask the Board to review the decision. Write to <a href="mailto:{$appealInbox}">{$appealInbox}</a>, say why you think it was wrong, and it will be put to the Board. Under the Membership Application you have one appeal.</p>
 
-<p>None of this affects your access to the Foundation's work. Everything the Foundation publishes is free on <a href="https://openarcollective.org">openarcollective.org</a>, with no account, no membership, and no sign-in, and that does not change.</p>
-
-<p>The Open Accounts Receivable Collective Foundation<br />
-<a href="https://openarcollective.org">openarcollective.org</a></p>
+<p>None of this touches your access to the Foundation's work. Everything the Foundation publishes is free on <a href="https://openarcollective.org">openarcollective.org</a>, with no account, no membership, and no sign-in. You are as welcome to use it today as you were yesterday.</p>
 HTML,
 ];
 
@@ -92,6 +92,15 @@ HTML,
 ];
 
 foreach ($templates as $t) {
+  // Signed only where a person is being written to. The held-decline notice
+  // goes to whoever is doing reviews, and a colleague signing off a work queue
+  // item with a full contact card is odd.
+  if (!empty($t['closing'])) {
+    $t['msg_text'] .= openar_signature_text($t['closing']);
+    $t['msg_html'] .= openar_signature_html($t['closing']);
+  }
+  unset($t['closing']);
+
   $t['is_active'] = TRUE;
   $t['is_reserved'] = FALSE;
   $existing = MessageTemplate::get(FALSE)->addWhere('msg_title', '=', $t['msg_title'])->execute()->first();

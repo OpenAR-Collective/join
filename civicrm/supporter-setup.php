@@ -22,6 +22,8 @@ define('OPENAR_SNAPSHOT_INCLUDED', TRUE);
 require_once __DIR__ . '/openar-snapshot.php';
 openar_snapshot(basename(__FILE__, '.php'));
 
+require_once __DIR__ . '/openar-signature.php';
+
 use Civi\Api4\Afform;
 use Civi\Api4\CustomField;
 use Civi\Api4\MessageTemplate;
@@ -62,10 +64,11 @@ $templates = [];
 $templates[] = [
   'msg_title' => 'OpenAR - Confirm your Statement of Support',
   'msg_subject' => 'Confirm your organization\'s Statement of Support',
+  'closing' => 'With thanks',
   'msg_text' => <<<'TEXT'
 Hello {$firstName},
 
-A Mission Supporter Statement of Support was signed in your organization's name, giving this address as the signer. One step is left: confirm that this address is yours.
+Thank you for standing with us. A Mission Supporter Statement of Support was signed in your organization's name, giving this address as the signer, and one small thing is left: confirm that this address is yours.
 
 Open this link to confirm:
 
@@ -73,32 +76,26 @@ Open this link to confirm:
 
 Nothing is recorded, and your organization is not listed anywhere, until you confirm. The link works once and is good for {$expiryDays} days. If it lapses, you can sign again at SIGN_URL_HERE.
 
-After you confirm, someone at the Foundation checks the signature before the organization appears on the public roster. Signing costs nothing and carries no financial commitment of any kind, now or ever.
+After you confirm, someone here reads the signature before your organization appears on the public roster. Signing costs nothing and carries no financial commitment of any kind, now or ever.
 
-If you did not sign, and did not ask anyone to sign on your behalf, please tell us at membership@openarcollective.org. Ignoring this message also works: nothing happens without your confirmation.
-
-The Open Accounts Receivable Collective Foundation
-openarcollective.org
+If you did not sign, and did not ask anyone to sign on your behalf, please tell us at membership@openarcollective.org. Ignoring this message also works, because nothing happens without your confirmation.
 TEXT,
   'msg_html' => <<<'HTML'
 <p>Hello {$firstName},</p>
 
-<p>A Mission Supporter Statement of Support was signed in your organization's name, giving this address as the signer. One step is left: confirm that this address is yours.</p>
+<p>Thank you for standing with us. A Mission Supporter Statement of Support was signed in your organization's name, giving this address as the signer, and one small thing is left: confirm that this address is yours.</p>
 
 <p><a href="{$verifyUrl}" style="display:inline-block;padding:12px 22px;background:#e8a020;color:#161410;font-family:Arial,Helvetica,sans-serif;font-weight:600;text-decoration:none;border-radius:3px;">Confirm this signature</a></p>
 
 <p>Nothing is recorded, and your organization is not listed anywhere, until you confirm. The link works once and is good for {$expiryDays} days. If it lapses, you can sign again at <a href="SIGN_URL_HERE">join.openarcollective.org/sign</a>.</p>
 
-<p>After you confirm, someone at the Foundation checks the signature before the organization appears on the public roster. Signing costs nothing and carries no financial commitment of any kind, now or ever.</p>
+<p>After you confirm, someone here reads the signature before your organization appears on the public roster. Signing costs nothing and carries no financial commitment of any kind, now or ever.</p>
 
 <p>If the button does not work, copy this address into your browser:</p>
 
 <p style="font-family:monospace;font-size:13px;word-break:break-all;">{$verifyUrl}</p>
 
-<p>If you did not sign, and did not ask anyone to sign on your behalf, please tell us at <a href="mailto:membership@openarcollective.org">membership@openarcollective.org</a>. Ignoring this message also works: nothing happens without your confirmation.</p>
-
-<p>The Open Accounts Receivable Collective Foundation<br />
-<a href="https://openarcollective.org">openarcollective.org</a></p>
+<p>If you did not sign, and did not ask anyone to sign on your behalf, please tell us at <a href="mailto:membership@openarcollective.org">membership@openarcollective.org</a>. Ignoring this message also works, because nothing happens without your confirmation.</p>
 HTML,
 ];
 
@@ -166,37 +163,45 @@ HTML,
 $templates[] = [
   'msg_title' => 'OpenAR - Your organization is now listed',
   'msg_subject' => '{$organizationName} is now a Mission Supporter',
+  'closing' => 'Thank you for standing with us',
   'msg_text' => <<<'TEXT'
 Hello {$firstName},
 
-{$organizationName} is now listed as a Mission Supporter of The Open Accounts Receivable Collective Foundation. The roster is at https://openarcollective.org/supporters
+{$organizationName} is on the roster. You can see it at https://openarcollective.org/supporters
 
-Organizations are listed in alphabetical order, on identical terms, with no tiers. Listing is not a review, approval, or endorsement by the Foundation, and it does not make your organization a member, partner, affiliate, or sponsor.
+Saying publicly that you support this work matters, and we are grateful for it. Organizations are listed in alphabetical order, on identical terms, with no tiers, so your organization sits alongside every other on exactly the same footing.
 
-To send a logo for the roster, or to correct anything in your listing, write to membership@openarcollective.org.
+To be plain about what the listing is not: it is not a review, approval, or endorsement by the Foundation, and it does not make your organization a member, partner, affiliate, or sponsor.
 
-You can withdraw at any time by writing to the same address, and your organization will be removed promptly. The Statement asks nothing further of you: no dues, no financial commitment, and no position on industry practices, regulation, or litigation.
+To send a logo for the roster, or to correct anything in your listing, write to membership@openarcollective.org and we will sort it out.
 
-The Open Accounts Receivable Collective Foundation
-openarcollective.org
+You can withdraw at any time by writing to the same address, with no reason needed, and your organization will be removed promptly. The Statement asks nothing further of you: no dues, no financial commitment, and no position on industry practices, regulation, or litigation.
 TEXT,
   'msg_html' => <<<'HTML'
 <p>Hello {$firstName},</p>
 
-<p><strong>{$organizationName}</strong> is now listed as a Mission Supporter of The Open Accounts Receivable Collective Foundation. The roster is at <a href="https://openarcollective.org/supporters">openarcollective.org/supporters</a>.</p>
+<p><strong>{$organizationName}</strong> is on the roster. You can see it at <a href="https://openarcollective.org/supporters">openarcollective.org/supporters</a>.</p>
 
-<p>Organizations are listed in alphabetical order, on identical terms, with no tiers. Listing is not a review, approval, or endorsement by the Foundation, and it does not make your organization a member, partner, affiliate, or sponsor.</p>
+<p>Saying publicly that you support this work matters, and we are grateful for it. Organizations are listed in alphabetical order, on identical terms, with no tiers, so your organization sits alongside every other on exactly the same footing.</p>
 
-<p>To send a logo for the roster, or to correct anything in your listing, write to <a href="mailto:membership@openarcollective.org">membership@openarcollective.org</a>.</p>
+<p>To be plain about what the listing is not: it is not a review, approval, or endorsement by the Foundation, and it does not make your organization a member, partner, affiliate, or sponsor.</p>
 
-<p>You can withdraw at any time by writing to the same address, and your organization will be removed promptly. The Statement asks nothing further of you: no dues, no financial commitment, and no position on industry practices, regulation, or litigation.</p>
+<p>To send a logo for the roster, or to correct anything in your listing, write to <a href="mailto:membership@openarcollective.org">membership@openarcollective.org</a> and we will sort it out.</p>
 
-<p>The Open Accounts Receivable Collective Foundation<br />
-<a href="https://openarcollective.org">openarcollective.org</a></p>
+<p>You can withdraw at any time by writing to the same address, with no reason needed, and your organization will be removed promptly. The Statement asks nothing further of you: no dues, no financial commitment, and no position on industry practices, regulation, or litigation.</p>
 HTML,
 ];
 
 foreach ($templates as $t) {
+  // Signed only where a person is being written to. The reviewer notification
+  // has no closing, because a colleague signing off a work queue item with a
+  // full contact card is odd.
+  if (!empty($t['closing'])) {
+    $t['msg_text'] .= openar_signature_text($t['closing']);
+    $t['msg_html'] .= openar_signature_html($t['closing']);
+  }
+  unset($t['closing']);
+
   $t['msg_text'] = str_replace('SIGN_URL_HERE', SIGN_URL, $t['msg_text']);
   $t['msg_html'] = str_replace('SIGN_URL_HERE', SIGN_URL, $t['msg_html']);
   $t['is_active'] = TRUE;

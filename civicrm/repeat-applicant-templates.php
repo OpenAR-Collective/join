@@ -26,50 +26,51 @@ use Civi\Api4\MessageTemplate;
 
 $templates = [];
 
+require_once __DIR__ . '/openar-signature.php';
+
 /* ---------------------------------------------------------------- member -- */
 
 $templates[] = [
   'msg_title' => 'OpenAR - You are already a member',
-  'msg_subject' => 'You are already a member of the OpenAR Collective',
+  'msg_subject' => 'Good news, you are already a member',
+  'closing' => 'Good to have you with us',
   'msg_text' => <<<'TEXT'
 Hello {$firstName},
 
-A membership application was submitted using this email address. You are already a member, so there is nothing further for you to do and no new record has been created.
+Thank you for applying, and for the enthusiasm. You are already a member, so there is nothing further for you to do. Nothing on your record has changed and no second one has been created.
 {if $memberNumber}
-Your member number is {$memberNumber}.
+
+Your member number is {$memberNumber}, in case that is what you were looking for.
 {/if}{if $discordUrl}
-To join the Foundation's Discord server, or to reconnect an account you have lost access to, open this link:
+
+If you came back because you cannot get into the Foundation's Discord server, or you have lost access to the account you joined with, this link sorts it out:
 
 {$discordUrl}
 {else}
-For an invitation to the Foundation's Discord server, write to membership@openarcollective.org.
+
+If you came back because you cannot get into the Foundation's Discord server, write to membership@openarcollective.org and we will send you a fresh invitation.
 {/if}
+
 You are also on the members-only email list, and you can leave it at any time without affecting your membership.
 
 If you did not submit that application, you can ignore this message. Your membership is unchanged.
-
-The Open Accounts Receivable Collective Foundation
-openarcollective.org
 TEXT,
   'msg_html' => <<<'HTML'
 <p>Hello {$firstName},</p>
 
-<p>A membership application was submitted using this email address. You are already a member, so there is nothing further for you to do and no new record has been created.</p>
+<p>Thank you for applying, and for the enthusiasm. You are already a member, so there is nothing further for you to do. Nothing on your record has changed and no second one has been created.</p>
 {if $memberNumber}
-<p>Your member number is <strong>{$memberNumber}</strong>.</p>
+<p>Your member number is <strong>{$memberNumber}</strong>, in case that is what you were looking for.</p>
 {/if}{if $discordUrl}
-<p>To join the Foundation's Discord server, or to reconnect an account you have lost access to, use this link:</p>
+<p>If you came back because you cannot get into the Foundation's Discord server, or you have lost access to the account you joined with, this button sorts it out:</p>
 
 <p><a href="{$discordUrl}" style="display:inline-block;padding:12px 22px;background:#e8a020;color:#161410;font-family:Arial,Helvetica,sans-serif;font-weight:600;text-decoration:none;border-radius:3px;">Connect my Discord account</a></p>
 {else}
-<p>For an invitation to the Foundation's Discord server, write to <a href="mailto:membership@openarcollective.org">membership@openarcollective.org</a>.</p>
+<p>If you came back because you cannot get into the Foundation's Discord server, write to <a href="mailto:membership@openarcollective.org">membership@openarcollective.org</a> and we will send you a fresh invitation.</p>
 {/if}
 <p>You are also on the members-only email list, and you can leave it at any time without affecting your membership.</p>
 
 <p>If you did not submit that application, you can ignore this message. Your membership is unchanged.</p>
-
-<p>The Open Accounts Receivable Collective Foundation<br />
-<a href="https://openarcollective.org">openarcollective.org</a></p>
 HTML,
 ];
 
@@ -80,34 +81,35 @@ HTML,
 // a declined applicant is picked up by a director instead.
 $templates[] = [
   'msg_title' => 'OpenAR - Your application is already with us',
-  'msg_subject' => 'We already have your membership application',
+  'msg_subject' => 'Your application is already with us',
+  'closing' => 'Thank you for your patience',
   'msg_text' => <<<'TEXT'
 Hello {$firstName},
 
-A membership application was submitted using this email address, and we already have an application on file from it. There is nothing more for you to do right now, and someone from the membership team will be in touch.
+Thank you for applying. We already have an application from this address, so there is nothing more for you to do and nothing has been lost. A person is looking at it, and that usually takes a few days rather than weeks.
+
+If you have thought of something you would like us to know while it is being read, reply to this message and it will reach the same people.
 
 If you did not submit that application, you can ignore this message.
-
-Questions go to membership@openarcollective.org.
-
-The Open Accounts Receivable Collective Foundation
-openarcollective.org
 TEXT,
   'msg_html' => <<<'HTML'
 <p>Hello {$firstName},</p>
 
-<p>A membership application was submitted using this email address, and we already have an application on file from it. There is nothing more for you to do right now, and someone from the membership team will be in touch.</p>
+<p>Thank you for applying. We already have an application from this address, so there is nothing more for you to do and nothing has been lost. A person is looking at it, and that usually takes a few days rather than weeks.</p>
+
+<p>If you have thought of something you would like us to know while it is being read, reply to this message and it will reach the same people.</p>
 
 <p>If you did not submit that application, you can ignore this message.</p>
-
-<p>Questions go to <a href="mailto:membership@openarcollective.org">membership@openarcollective.org</a>.</p>
-
-<p>The Open Accounts Receivable Collective Foundation<br />
-<a href="https://openarcollective.org">openarcollective.org</a></p>
 HTML,
 ];
 
 foreach ($templates as $t) {
+  // The sign-off is appended rather than written into each template, so the
+  // closing line is the only part that varies with the moment.
+  $t['msg_text'] .= openar_signature_text($t['closing']);
+  $t['msg_html'] .= openar_signature_html($t['closing']);
+  unset($t['closing']);
+
   $t['is_active'] = TRUE;
   $t['is_reserved'] = FALSE;
   $existing = MessageTemplate::get(FALSE)->addWhere('msg_title', '=', $t['msg_title'])->execute()->first();
