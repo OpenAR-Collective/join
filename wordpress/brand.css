@@ -84,7 +84,11 @@ body > .wp-site-blocks a:hover { color: #f5c050; }
    page line up. Together that gave 85 characters a line at a size meant for
    headlines. Dropping the size alone would have made it worse, since the same
    column at a smaller size runs past 100 characters, so the measure comes down
-   with it to about 70.
+   with it, to 42rem and about 79 characters.
+
+   Centered, not merely capped. Capping alone left the column against the left
+   edge of a 58rem container, filling about two thirds of it, which reads as a
+   layout that has gone wrong rather than as a measure that was chosen.
 
    Scoped to a wrapper class rather than to .entry-content, because the CiviCRM
    base page and the landing page share that container and neither wants this. */
@@ -92,8 +96,12 @@ body > .wp-site-blocks a:hover { color: #f5c050; }
 .oar-prose li,
 .oar-prose h1,
 .oar-prose h2,
-.oar-prose h3 {
-  max-width: 38rem;
+.oar-prose h3,
+.oar-prose ol,
+.oar-prose ul {
+  max-width: 42rem;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .oar-prose p,
@@ -116,7 +124,6 @@ body > .wp-site-blocks a:hover { color: #f5c050; }
 /* Lists inherit the theme's list spacing, which is built for the wider measure. */
 .oar-prose ol,
 .oar-prose ul {
-  max-width: 38rem;
   padding-left: 1.4rem;
 }
 
@@ -128,7 +135,9 @@ body > .wp-site-blocks a:hover { color: #f5c050; }
    without :has() simply keep the larger heading, which is survivable. */
 body:has(.oar-prose) .wp-block-post-title {
   font-size: 2.1rem;
-  max-width: 38rem;
+  max-width: 42rem;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 /* The confirmation page blanks CiviCRM's "Form Submission" title so the

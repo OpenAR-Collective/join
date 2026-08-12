@@ -53,14 +53,14 @@ It is worth being plain about this, because membership is easy to mistake for so
 Your access to the work is unchanged
 ------------------------------------
 
-None of this touches what the Foundation actually produces. Everything it publishes is free at https://openarcollective.org with no account, no membership and no sign-in, and its software is developed in the open at https://github.com/OpenAR-Collective under the Apache License. You are as welcome to use all of it today as you were yesterday, and you always will be.
+None of this touches what the Foundation actually produces. Everything it publishes is free at https://openarcollective.org with no account, no membership and no sign-in, and its software is developed in the open at https://github.com/OpenAR-Collective under permissive open-source licenses. You are as welcome to use all of it today as you were yesterday, and you always will be.
 
 If this is wrong
 ----------------
 
 The decision is about one application, it is not a judgment of you or your work, and it is not permanent. If we have misread something, or if your circumstances change, write and tell us and we will look again.
 
-You can also ask the Board to review it. Write to {$appealInbox}, say why you think it was wrong, and it will be put to the Board. Under the Membership Application you have one appeal.
+You can also ask the Board to review it. Write to {$appealInbox}, say why you think it was wrong, and it will be put to the Board, whose decision is final. That mirrors the single appeal the Community Programs and Standards Policy gives for a suspension or revocation.
 TEXT,
   'msg_html' => <<<'HTML'
 <p>Hello {$firstName},</p>
@@ -81,13 +81,13 @@ TEXT,
 
 <h3 style="margin:26px 0 6px;">Your access to the work is unchanged</h3>
 
-<p>None of this touches what the Foundation actually produces. Everything it publishes is free at <a href="https://openarcollective.org">openarcollective.org</a> with no account, no membership and no sign-in, and its software is developed in the open at <a href="https://github.com/OpenAR-Collective">github.com/OpenAR-Collective</a> under the Apache License. You are as welcome to use all of it today as you were yesterday, and you always will be.</p>
+<p>None of this touches what the Foundation actually produces. Everything it publishes is free at <a href="https://openarcollective.org">openarcollective.org</a> with no account, no membership and no sign-in, and its software is developed in the open at <a href="https://github.com/OpenAR-Collective">github.com/OpenAR-Collective</a> under permissive open-source licenses. You are as welcome to use all of it today as you were yesterday, and you always will be.</p>
 
 <h3 style="margin:26px 0 6px;">If this is wrong</h3>
 
 <p>The decision is about one application, it is not a judgment of you or your work, and it is not permanent. If we have misread something, or if your circumstances change, write and tell us and we will look again.</p>
 
-<p>You can also ask the Board to review it. Write to <a href="mailto:{$appealInbox}">{$appealInbox}</a>, say why you think it was wrong, and it will be put to the Board. Under the Membership Application you have one appeal.</p>
+<p>You can also ask the Board to review it. Write to <a href="mailto:{$appealInbox}">{$appealInbox}</a>, say why you think it was wrong, and it will be put to the Board, whose decision is final. That mirrors the single appeal the Community Programs and Standards Policy gives for a suspension or revocation.</p>
 HTML,
 ];
 
