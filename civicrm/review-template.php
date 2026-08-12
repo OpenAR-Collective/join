@@ -80,7 +80,7 @@ director, states the reason, and is recorded on the contact.
 
 --
 Sent automatically by the OpenAR onboarding workflow when the applicant
-confirmed their email address. Nobody typed it.
+confirmed their email address.
 
 The OpenAR Collective Bot
 TXT;
@@ -111,7 +111,7 @@ director, states the reason, and is recorded on the contact.</p>
 
 <p style="margin-top:26px;padding-top:14px;border-top:1px solid #e3ded3;font-size:12px;color:#5c564c;">
 Sent automatically by the OpenAR onboarding workflow when the applicant confirmed
-their email address. Nobody typed it.<br />
+their email address.<br />
 <strong>The OpenAR Collective Bot</strong>
 </p>
 HTML;
