@@ -21,6 +21,31 @@ if (!function_exists('wp_update_custom_css_post')) {
   return;
 }
 
+// This replaces the live stylesheet outright, so keep the current one first.
+// An edit made through the WordPress admin is otherwise lost without trace.
+if (function_exists('civicrm_initialize')) {
+  civicrm_initialize();
+  define('OPENAR_SNAPSHOT_INCLUDED', TRUE);
+  // Deployed flat alongside the other scripts, but sits in wordpress/ in the
+  // repository, so both layouts are tried. A missing helper is a warning rather
+  // than a fatal: failing to snapshot should not stop the stylesheet going out.
+  $snapshot = '';
+  foreach ([__DIR__ . '/openar-snapshot.php', __DIR__ . '/../civicrm/openar-snapshot.php'] as $candidate) {
+    if (is_readable($candidate)) {
+      $snapshot = $candidate;
+      break;
+    }
+  }
+  if ($snapshot !== '') {
+    require_once $snapshot;
+    openar_snapshot('install-brand-css');
+  }
+  else {
+    echo "WARNING: openar-snapshot.php not found, so nothing was saved first.
+";
+  }
+}
+
 $css = __DIR__ . '/brand.css';
 if (!is_readable($css)) {
   echo "ERROR: cannot read {$css}\n";

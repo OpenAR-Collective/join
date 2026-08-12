@@ -1,49 +1,69 @@
 <?php
 /**
- * Snapshot every piece of configuration a provisioning script can overwrite.
+ * Snapshot every piece of configuration a provisioning script can overwrite,
+ * into a git repository, so what changed is a diff rather than a guess.
  *
  * Included by the scripts that replace live configuration, and run before they
  * write anything. It exists because a script here destroyed the live membership
  * application form: the mission statement, the section headings and the
- * Community Participation Terms all vanished because the script carried only
- * the field list, and Afform::update replaces the whole layout.
+ * Community Participation Terms all vanished, because the script carried only
+ * the field list and Afform::update replaces the whole layout.
  *
  * The guards in those scripts check that the script's own copy looks complete.
  * They cannot tell that the live form has something the script does not, which
- * is the case that actually hurt. This can: it keeps the old copy so the damage
- * is a restore rather than an archaeology exercise.
+ * is the case that actually hurt. This can. Every run overwrites the same
+ * filenames and commits, so `git log -p` shows exactly what each script changed
+ * and any earlier state can be restored with `git show`.
  *
- * Snapshots land in /var/www/openar-snapshots/<timestamp>-<reason>/ and are
- * never pruned automatically. They are small and the machine has room.
+ * What is kept: both Afform layouts, all OpenAR message templates, the brand
+ * stylesheet, the custom field definitions, and a few settings.
  *
- * The directory is owned by www-data, which is what these scripts run as, so
- * nothing has to be world-writable and nothing lives in a user's home. It sits
- * outside the document root, so it is never served.
+ * What is never kept: credentials, and any member or applicant record.
+ *
+ * The repository is local and deliberately has no remote. Everything in it is
+ * either already in the public join repository or is drift away from it, and
+ * the failure it defends against is a bad write on this machine.
  *
  * Created once, as root:
  *   mkdir -p /var/www/openar-snapshots
  *   chown www-data:www-data /var/www/openar-snapshots
  *   chmod 750 /var/www/openar-snapshots
  *
- * A snapshot holds form layouts, email templates, the stylesheet and field
- * definitions. Settings are included with credentials redacted; no credential
- * and no member record is ever written to one.
- *
- * On its own:
+ * Record the current state:
  *   sudo -u www-data wp --path=/var/www/openarcollective.org eval-file openar-snapshot.php
+ *
+ * Read the history as an ordinary user, no sudo needed:
+ *   git -C /var/www/openar-snapshots log --oneline
+ *   git -C /var/www/openar-snapshots log -p -- brand.css
+ *   git -C /var/www/openar-snapshots show <commit>:message-templates.json
+ *
+ * Git may refuse a repository owned by another user. Once, as rob:
+ *   git config --global --add safe.directory /var/www/openar-snapshots
  */
 
 if (!function_exists('openar_snapshot')) {
 
+  /** Run a git command in the snapshot repository. Returns [exitCode, output]. */
+  function openar_snapshot_git(string $dir, array $args): array {
+    // The committer identity is passed per command so git never needs a
+    // writable HOME, which www-data does not reliably have.
+    $cmd = 'git -c user.name=openar-snapshot -c user.email=bots@openarcollective.org'
+      . ' -C ' . escapeshellarg($dir);
+    foreach ($args as $a) {
+      $cmd .= ' ' . escapeshellarg($a);
+    }
+    $out = [];
+    $code = 0;
+    @exec($cmd . ' 2>&1', $out, $code);
+    return [$code, implode("\n", $out)];
+  }
+
   /**
-   * Write the current state of everything overwritable, and report what it saw.
+   * Record the current state of everything overwritable.
    *
-   * @return string The directory written to, or '' if it could not write.
+   * @return string The repository written to, or '' if nothing was recorded.
    */
   function openar_snapshot(string $reason = 'manual'): string {
-    // Preferred home is owned by www-data and sits outside the document root.
-    // The older location stays as a fallback so there is never a window where
-    // snapshots quietly stop because a directory has not been created yet.
     $base = '';
     foreach (['/var/www/openar-snapshots', '/home/rob/openar-snapshots'] as $candidate) {
       if (is_dir($candidate) && is_writable($candidate)) {
@@ -61,12 +81,14 @@ if (!function_exists('openar_snapshot')) {
       return '';
     }
 
-    $slug = preg_replace('/[^a-z0-9]+/i', '-', $reason) ?: 'run';
-    $dir = $base . '/' . date('Ymd-His') . '-' . strtolower(trim($slug, '-'));
-
-    if (!is_dir($dir) && !@mkdir($dir, 0755, TRUE)) {
-      echo "WARNING: could not create {$dir}; continuing without a snapshot\n";
-      return '';
+    $isRepo = is_dir("{$base}/.git");
+    if (!$isRepo) {
+      [$code, $out] = openar_snapshot_git($base, ['init', '-q', '-b', 'main']);
+      $isRepo = ($code === 0 && is_dir("{$base}/.git"));
+      if (!$isRepo) {
+        echo "WARNING: could not create a git repository in {$base}: {$out}\n";
+        echo "         Files are still written, but without history.\n";
+      }
     }
 
     $wrote = [];
@@ -82,8 +104,8 @@ if (!function_exists('openar_snapshot')) {
         ])->first();
         if (!empty($a['layout'])) {
           $layout = is_string($a['layout']) ? $a['layout'] : json_encode($a['layout']);
-          file_put_contents("{$dir}/{$name}.aff.html", $layout);
-          $wrote[] = "{$name}.aff.html (" . strlen($layout) . ')';
+          file_put_contents("{$base}/{$name}.aff.html", $layout);
+          $wrote[] = $name;
         }
       }
       catch (\Throwable $e) {
@@ -96,13 +118,12 @@ if (!function_exists('openar_snapshot')) {
       $templates = civicrm_api4('MessageTemplate', 'get', [
         'select' => ['id', 'msg_title', 'msg_subject', 'msg_text', 'msg_html'],
         'where' => [['msg_title', 'LIKE', 'OpenAR%']],
+        'orderBy' => ['msg_title' => 'ASC'],
         'checkPermissions' => FALSE,
       ]);
-      if (count($templates)) {
-        file_put_contents("{$dir}/message-templates.json",
-          json_encode((array) $templates, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
-        $wrote[] = 'message-templates.json (' . count($templates) . ' templates)';
-      }
+      file_put_contents("{$base}/message-templates.json",
+        json_encode((array) $templates, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+      $wrote[] = 'message templates';
     }
     catch (\Throwable $e) {
       echo "WARNING: could not snapshot message templates: " . $e->getMessage() . "\n";
@@ -112,31 +133,31 @@ if (!function_exists('openar_snapshot')) {
     if (function_exists('wp_get_custom_css')) {
       $css = (string) wp_get_custom_css();
       if ($css !== '') {
-        file_put_contents("{$dir}/brand.css", $css);
-        $wrote[] = 'brand.css (' . strlen($css) . ')';
+        file_put_contents("{$base}/brand.css", $css);
+        $wrote[] = 'brand.css';
       }
     }
 
     // Settings, with credentials stripped. mailing_backend holds the delivery
     // mode and the SMTP credentials in one array, so a careless write to it
-    // destroys the mail configuration; that is exactly what happened once. The
-    // shape is worth keeping even though the secrets deliberately are not.
+    // destroys the mail configuration. That happened. The shape is worth
+    // keeping even though the secrets deliberately are not.
     try {
       $settings = [];
       foreach (['mailing_backend', 'languageLimit', 'checksum_timeout'] as $name) {
         $value = Civi::settings()->get($name);
         if (is_array($value)) {
           foreach (['smtpPassword', 'smtpUsername'] as $secret) {
-            if (isset($value[$secret])) {
+            if (isset($value[$secret]) && $value[$secret] !== '') {
               $value[$secret] = '(redacted, ' . strlen((string) $value[$secret]) . ' chars)';
             }
           }
         }
         $settings[$name] = $value;
       }
-      file_put_contents("{$dir}/settings.json",
+      file_put_contents("{$base}/settings.json",
         json_encode($settings, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
-      $wrote[] = 'settings.json (credentials redacted)';
+      $wrote[] = 'settings';
     }
     catch (\Throwable $e) {
       echo "WARNING: could not snapshot settings: " . $e->getMessage() . "\n";
@@ -148,31 +169,57 @@ if (!function_exists('openar_snapshot')) {
         'select' => ['custom_group_id.name', 'name', 'label', 'data_type', 'html_type',
                      'is_required', 'is_active', 'help_pre', 'help_post', 'weight'],
         'where' => [['custom_group_id.name', 'IN', ['Membership', 'MissionSupporter']]],
+        'orderBy' => ['weight' => 'ASC'],
         'checkPermissions' => FALSE,
       ]);
-      file_put_contents("{$dir}/custom-fields.json",
+      file_put_contents("{$base}/custom-fields.json",
         json_encode((array) $fields, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
-      $wrote[] = 'custom-fields.json (' . count($fields) . ' fields)';
+      $wrote[] = 'custom fields';
     }
     catch (\Throwable $e) {
       echo "WARNING: could not snapshot custom fields: " . $e->getMessage() . "\n";
     }
 
-    @chmod($dir, 0755);
-    foreach (glob("{$dir}/*") as $f) {
+    // Readable by rob, so the history can be read without sudo. Nothing here is
+    // secret: it is all either in the public join repository already or is drift
+    // away from it, and credentials are redacted before they are written.
+    @chmod($base, 0755);
+    foreach (glob("{$base}/*") as $f) {
       @chmod($f, 0644);
     }
 
-    echo "snapshot: {$dir}\n";
-    foreach ($wrote as $w) {
-      echo "  {$w}\n";
+    if (!$isRepo) {
+      echo 'snapshot written to ' . $base . ', no history (' . implode(', ', $wrote) . ")\n";
+      return $base;
     }
 
-    return $dir;
+    // What changed, established before it is committed.
+    [, $status] = openar_snapshot_git($base, ['status', '--porcelain']);
+
+    if (trim($status) === '') {
+      echo "snapshot: nothing has changed since the last one\n";
+      return $base;
+    }
+
+    openar_snapshot_git($base, ['add', '-A']);
+    [$code, $out] = openar_snapshot_git($base, ['commit', '-q', '-m', "before {$reason}"]);
+
+    if ($code !== 0) {
+      echo "WARNING: snapshot files written but not committed: {$out}\n";
+      return $base;
+    }
+
+    [, $hash] = openar_snapshot_git($base, ['rev-parse', '--short', 'HEAD']);
+    echo 'snapshot: ' . trim($hash) . " committed before {$reason}\n";
+    foreach (explode("\n", trim($status)) as $line) {
+      echo '  ' . trim($line) . "\n";
+    }
+
+    return $base;
   }
 }
 
-// Run directly rather than included: take a snapshot and say so.
+// Run directly rather than included: record the current state and say so.
 if (!defined('OPENAR_SNAPSHOT_INCLUDED')) {
   civicrm_initialize();
   openar_snapshot('manual');

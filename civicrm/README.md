@@ -350,30 +350,41 @@ the supporter form was not.
 
 If you add an agreement to either form, set `input_type: 'CheckBox'` on it.
 
-## Before anything overwrites, it snapshots
+## Before anything overwrites, it snapshots into git
 
 Every script here that replaces live configuration first calls
-`openar_snapshot()`, which writes the current state of all of it to
-`/var/www/openar-snapshots/<timestamp>-<script>/`: both form layouts, all ten
-message templates, the brand stylesheet, and the custom field definitions.
+`openar_snapshot()`, which writes the current state of all of it into
+`/var/www/openar-snapshots` and commits. That covers both form layouts, all
+message templates, the brand stylesheet, the custom field definitions, and a few
+settings with credentials redacted.
 
 This exists because the guards are weaker than they look. A guard checks that
-*this file* contains the mission block and the terms. It cannot know that the
-*live* form has a section this file has never heard of, and that is the case
-that actually destroyed the membership form. The snapshot does not prevent that;
-it makes it a restore instead of an archaeology exercise.
+*this file* contains the mission block and the terms. It cannot know the *live*
+form has a section this file has never heard of, and that is the case that
+destroyed the membership form. The snapshot does not prevent that; it turns it
+into a diff.
 
-The same applies to the message templates, and more sharply, because the review
-template says it is editable in Administer > Message Templates. Edit one there,
-re-run its script, and the edit is gone. Now the previous version is on disk.
-
-Restoring is a copy:
+Reading it needs no sudo:
 
 ```bash
-cp /var/www/openar-snapshots/<timestamp>-<script>/afformMembershipApplication.aff.html    /var/www/openarcollective.org/wp-content/uploads/civicrm/ang/
+git -C /var/www/openar-snapshots log --oneline
+git -C /var/www/openar-snapshots log -p -- brand.css
+git -C /var/www/openar-snapshots show <commit>:message-templates.json
 ```
 
-Nothing prunes them. They are a few hundred kilobytes each.
+Git refuses repositories owned by another user until told otherwise. Once:
+
+```bash
+git config --global --add safe.directory /var/www/openar-snapshots
+```
+
+A commit is made only when something actually changed, so the log is a list of
+real changes rather than one entry per run. Each is named for the script that
+was about to write: `before welcome-template`, `before civi-afform-membership`.
+
+This was proved by editing a message template as if through the CiviCRM admin,
+then running the script that overwrites it. The edit was committed first and is
+still recoverable from that commit.
 
 One-time setup, as root:
 
@@ -383,9 +394,9 @@ chown www-data:www-data /var/www/openar-snapshots
 chmod 750 /var/www/openar-snapshots
 ```
 
-Owned by www-data, which is what the scripts run as, and outside the document
-root so it is never served. A snapshot holds form layouts, email templates, the
-stylesheet and field definitions, plus settings with credentials redacted.
+The repository has no remote on purpose. Everything in it is either already in
+this public repository or is drift away from it, and the failure it defends
+against happens on that machine.
 
 ## mailing_backend is one array, so never write it wholesale
 
