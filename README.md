@@ -87,6 +87,10 @@ way. The symmetry is the point: it draws a clean line between members and
 Mission Supporters and makes it obvious which side of the house a number belongs
 to. "3 waiting" means different work depending on which one it is.
 
+It is also meant to need no explaining. The table carried a paragraph telling
+the reader that members were above the line and supporters below it, which the
+table already said.
+
 | | |
 |---|---|
 | Members awaiting confirmation | Email confirmation link not clicked |

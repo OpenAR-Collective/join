@@ -199,18 +199,13 @@ function openar_admin_page(): void {
       <div class="notice notice-error is-dismissible"><p><?php echo esc_html($error); ?></p></div>
     <?php endif; ?>
 
-    <h2>Where everything stands</h2>
-    <p class="description" style="max-width:60em">
-      Both paths pass through the same three states, named and ordered the same
-      way. Members are above the line, Mission Supporters below it.
-    </p>
-
-    <table class="widefat striped" style="max-width:60em">
+    <table class="widefat striped" style="max-width:76em">
       <thead>
         <tr>
-          <th scope="col" style="width:22em">What</th>
+          <th scope="col" style="width:20em">What</th>
           <th scope="col" style="width:5em;text-align:right">Count</th>
-          <th scope="col">What it means, and where the work is done</th>
+          <th scope="col">What it means</th>
+          <th scope="col" style="width:22em">Where the work is done</th>
         </tr>
       </thead>
       <tbody>
@@ -237,8 +232,8 @@ function openar_admin_page(): void {
                 <strong style="<?php echo $needed ? 'color:#a13b1e' : ''; ?>">ACTION NEEDED:</strong>
               <?php endif; ?>
               <?php echo esc_html($note); ?>
-              <br /><span style="color:#646970"><?php echo esc_html($r['where']); ?>.</span>
             </td>
+            <td style="<?php echo $top; ?>"><?php echo esc_html($r['where']); ?></td>
           </tr>
         <?php endforeach; ?>
       </tbody>
@@ -571,10 +566,10 @@ function openar_admin_rows(?array $pending = NULL): array {
       'count' => count($members),
       'lapsed' => $lapsed($members),
       'url' => $screen,
-      // Every "where" names a destination rather than describing the page it is
-      // on, because these rows render in two places and are read when the count
-      // is zero and there is nothing listed anywhere.
-      'where' => 'The OpenAR onboarding screen, which has a button to send a fresh link',
+      // Each "where" is a column value, so it names a place and stops. It is
+      // also read when the count is zero and the list it refers to is not on
+      // the page at all, which rules out "listed below".
+      'where' => 'This screen, with a button to send a fresh link',
     ],
     [
       'side' => 'member',
@@ -599,10 +594,10 @@ function openar_admin_rows(?array $pending = NULL): array {
       'count' => count($supporters),
       'lapsed' => $lapsed($supporters),
       'url' => $screen,
-      // Every "where" names a destination rather than describing the page it is
-      // on, because these rows render in two places and are read when the count
-      // is zero and there is nothing listed anywhere.
-      'where' => 'The OpenAR onboarding screen, which has a button to send a fresh link',
+      // Each "where" is a column value, so it names a place and stops. It is
+      // also read when the count is zero and the list it refers to is not on
+      // the page at all, which rules out "listed below".
+      'where' => 'This screen, with a button to send a fresh link',
     ],
     [
       'side' => 'supporter',
@@ -618,7 +613,10 @@ function openar_admin_rows(?array $pending = NULL): array {
       'note' => 'Companies publicly listed as Mission Supporters',
       'count' => openar_admin_group_count('supporters_published'),
       'url' => $group('supporters_published'),
-      'where' => 'Mission Supporters published, in CiviCRM. The roster syncs to the website hourly',
+      // The one place a "where" earns a second clause: adding a contact to this
+      // group puts the organization on a public website, and nothing else on
+      // either screen says so.
+      'where' => 'Mission Supporters published, in CiviCRM. Adding one here publishes it; the roster syncs hourly',
     ],
   ];
 }
