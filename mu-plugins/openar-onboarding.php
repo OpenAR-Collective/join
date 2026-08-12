@@ -1221,13 +1221,20 @@ function openar_verify_html(bool $verified, string $kind): string {
 
   if ($kind === 'supporter') {
     return '<div class="oar-verify oar-prose">'
-      . '<h1>Thank you! Your signature is confirmed.</h1>'
+      // "Your email address is confirmed", not "your signature is confirmed".
+      // Confirming the address is all that has happened. The signature itself
+      // is still to be read by a person, and saying otherwise would tell the
+      // signer they are finished when the decision has not been made.
+      . '<h1>Thank you! Your email address is confirmed.</h1>'
       . '<p>The Statement of Support is now with the Foundation, recorded in your '
-      . 'organization&rsquo;s name.</p>'
+      . 'organization&rsquo;s name and waiting to be read.</p>'
       . '<h3>What happens next</h3>'
       . '<ol>'
-      . '<li>Someone at the Foundation checks the signature, chiefly that the person who signed can '
-      . 'speak for the organization. This usually takes a few days.</li>'
+      . '<li>Someone at the OpenAR Collective will review and validate your submission before your '
+      . 'organization appears on the public roster. This human review step is meant to verify, to '
+      . 'the best of our ability, that the information provided is valid. It is not a restriction '
+      . 'based on your organization&rsquo;s political affiliations, stance towards the accounts '
+      . 'receivable industry, or any other bias. It usually takes a few days.</li>'
       . '<li>If anything needs clarifying, we will write to the address you gave.</li>'
       . '<li>Once confirmed, your organization appears on the public roster at '
       . '<a href="https://openarcollective.org/supporters">openarcollective.org/supporters</a>, in '
