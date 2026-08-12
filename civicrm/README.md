@@ -12,7 +12,7 @@ sudo -u www-data wp --path=/var/www/openarcollective.org eval-file <script>.php
 | `civi-fields2.php` | Employer and LinkedIn fields |
 | `civi-groups.php` | Applicant workflow groups |
 | `civi-groups2.php` | Members group (reuses the installer's) and supporter groups |
-| `civi-afform3.php` | Membership application form layout |
+| `civi-afform-membership.php` | Membership application form, complete layout |
 | `verify-email.php` | Seven-day confirmation email template; disables Afform's ten-minute one |
 | `pending-applications.php` | Lists people who never confirmed; resends a link |
 | `confirm-email.php` | Superseded by `verify-email.php`, kept for history |
@@ -312,3 +312,23 @@ leaving a blank cell or an empty `href`.
 The form shows a placeholder, `linkedin.com/in/yourname`, and deliberately does
 not prefill. Prefilling an optional field means everyone who skips it submits a
 stub that looks like data and is a dead link.
+
+## Form scripts hold the WHOLE form
+
+`Afform::update` replaces the entire layout. A script that carries only the
+fields will therefore delete everything else in the form the moment it runs.
+
+That happened. `civi-afform3.php` held just the field list, and re-running it to
+change one placeholder destroyed the mission statement, the section headings and
+the scrollable Community Participation Terms that other work had added to the
+live form. The application ran for a while as a bare list of inputs with no terms
+above the box asking people to agree to them.
+
+`civi-afform-membership.php` replaces it and holds the full layout, and refuses
+to write if the mission block, terms block or agreement checkboxes are missing
+from its own copy. **If you change the form in the CiviCRM Form Builder, mirror
+the change into that file**, or the next run reverts you.
+
+The same applies to the Statement of Support. There is no script for that form,
+which is exactly why it survived; if one is written, it must carry the whole
+layout too.
