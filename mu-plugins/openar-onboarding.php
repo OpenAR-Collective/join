@@ -180,6 +180,17 @@ const OPENAR_SUPPORTER_LISTED_ACTIVITY = 'Mission Supporter listing confirmed';
 /** The Statement version a signature is bound to. Bump when the Statement changes. */
 const OPENAR_STATEMENT_VERSION = '1.2';
 
+/**
+ * The Community Participation Terms version an application is bound to.
+ *
+ * Clause 14 says a member is bound by the version in force on the date they
+ * were admitted, which only means something if the version is written down at
+ * the time. Nothing was recording it, so this is 1.0: the Terms as they stand
+ * on the membership form today. Bump it whenever that text changes, and never
+ * reuse a number, because existing records point at it.
+ */
+const OPENAR_TERMS_VERSION = '1.0';
+
 function openar_form_config(string $formName): ?array {
   return OPENAR_FORMS[$formName] ?? NULL;
 }
@@ -762,12 +773,28 @@ function openar_supporter_already_told(int $contactId): bool {
 /** Queue one confirmed applicant for review. */
 function openar_handle_new_contact(int $contactId): void {
   $contact = \Civi\Api4\Contact::get(FALSE)
-    ->addSelect('id', 'source', 'display_name')
+    ->addSelect('id', 'source', 'display_name', 'Membership.terms_version')
     ->addWhere('id', '=', $contactId)
     ->execute()->first();
 
   if (!$contact || ($contact['source'] ?? '') !== OPENAR_APPLICATION_SOURCE) {
     return;
+  }
+
+  // Which Terms they agreed to, and the moment the address was proved. Both are
+  // recorded here because neither can be reconstructed afterwards: a later
+  // version of the Terms cannot be inferred backwards onto an agreement already
+  // given, and nothing else in the record says when the link was opened.
+  //
+  // This function runs when the submission flips to Processed, which under
+  // manual processing is exactly when the confirmation link is followed, so now
+  // is the confirmation time rather than an approximation of it.
+  if (empty($contact['Membership.terms_version'])) {
+    \Civi\Api4\Contact::update(FALSE)
+      ->addWhere('id', '=', $contactId)
+      ->addValue('Membership.terms_version', OPENAR_TERMS_VERSION)
+      ->addValue('Membership.email_confirmed_date', date('Y-m-d H:i:s'))
+      ->execute();
   }
 
   openar_normalize_linkedin_on((int) $contact['id']);
