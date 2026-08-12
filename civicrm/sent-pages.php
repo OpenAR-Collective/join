@@ -104,13 +104,27 @@ HTML,
 
 $urls = [];
 
+/**
+ * Both of these are prose, and the site's typography is not set up for prose.
+ * The theme's body size and the 58rem measure that lines up the panels on the
+ * landing page combine to give 85 characters a line at a display size. This
+ * wrapper carries the class brand.css uses to bring both down.
+ */
+function openar_as_prose(string $body): string {
+  return "<!-- wp:group {\"className\":\"oar-prose\",\"layout\":{\"type\":\"constrained\"}} -->\n"
+    . "<div class=\"wp-block-group oar-prose\">\n"
+    . trim($body) . "\n"
+    . "</div>\n"
+    . "<!-- /wp:group -->";
+}
+
 foreach ($pages as $slug => $page) {
   $existing = get_page_by_path($slug);
 
   $data = [
     'post_title' => $page['title'],
     'post_name' => $slug,
-    'post_content' => $page['body'],
+    'post_content' => openar_as_prose($page['body']),
     'post_status' => 'publish',
     'post_type' => 'page',
     // Kept out of menus and search; people arrive here by being sent, and a

@@ -76,6 +76,45 @@ body > .wp-site-blocks a:hover { color: #f5c050; }
 
 .oar-lede { font-size: 1.15rem; color: rgba(244, 239, 230, 0.82); }
 
+/* Pages that are only prose, which today means /application-sent and
+   /statement-sent.
+
+   The theme sets body text at 21.8px, which is a display size rather than a
+   reading one, and the measure above is 58rem so the two panels on the landing
+   page line up. Together that gave 85 characters a line at a size meant for
+   headlines. Dropping the size alone would have made it worse, since the same
+   column at a smaller size runs past 100 characters, so the measure comes down
+   with it to about 70.
+
+   Scoped to a wrapper class rather than to .entry-content, because the CiviCRM
+   base page and the landing page share that container and neither wants this. */
+.oar-prose p,
+.oar-prose li,
+.oar-prose h2,
+.oar-prose h3 {
+  max-width: 38rem;
+}
+
+.oar-prose p,
+.oar-prose li {
+  font-size: 1.0625rem;
+  line-height: 1.65;
+}
+
+.oar-prose h2 {
+  font-size: 1.35rem;
+  margin-top: 2.25rem;
+}
+
+/* The post title is a sibling of the content, so it cannot be reached from
+   inside the wrapper. :has() scopes it to these pages without needing a body
+   class that would break the day a page is recreated with a new id. Browsers
+   without :has() simply keep the larger heading, which is survivable. */
+body:has(.oar-prose) .wp-block-post-title {
+  font-size: 2.1rem;
+  max-width: 38rem;
+}
+
 .oar-paths .wp-block-column {
   border: 1px solid rgba(232, 160, 32, 0.14);
   border-top: 3px solid var(--oar-amber);
