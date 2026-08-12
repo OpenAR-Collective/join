@@ -413,3 +413,34 @@ database dump.
 `mail-live.php` now merges rather than replaces, and checks afterwards that a
 server and credentials are actually present rather than assuming the write
 worked. Test scripts that capture mail must merge too.
+
+## CiviCRM admin screens are only reachable through wp-admin
+
+The CiviCRM basepage on the front end refuses any path beginning
+`civicrm/admin`, by design and regardless of who is asking:
+
+```php
+// CiviCRM_For_WordPress_Users::check_permission()
+$invalidPaths = ['admin'];
+if (in_array($arg1, $invalidPaths)) {
+  return FALSE;
+}
+```
+
+It then renders "You do not have permission to access this content", which reads
+like a permissions problem and is not one. Administrators already bypass every
+CiviCRM permission check (`CRM_Core_Permission_WordPress::check()` returns TRUE
+for the administrator role), so if an admin sees that message on a
+`join.openarcollective.org/civicrm/admin/...` URL, the URL is the fault.
+
+Use the wp-admin form instead:
+
+```
+https://join.openarcollective.org/wp-admin/admin.php?page=CiviCRM&q=<path>&reset=1
+```
+
+So the form submissions list, which shows unconfirmed applications:
+
+```
+https://join.openarcollective.org/wp-admin/admin.php?page=CiviCRM&q=civicrm/admin/afform/submissions&reset=1
+```
