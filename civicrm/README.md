@@ -291,3 +291,24 @@ sudo -u www-data wp --path=/var/www/openarcollective.org eval-file mail-live.php
 ```
 
 Run it after any test session that touched mail.
+
+## LinkedIn
+
+Stored canonical. Whatever the applicant types is rewritten to
+`https://www.linkedin.com/in/handle` when the application is confirmed, before
+the reviewer is notified. Ten spellings of the same profile collapse to one:
+bare handles, `in/handle`, missing schemes, country subdomains, trailing
+slashes, mixed case, and `?utm_*` / `?originalSubdomain=` tails.
+
+Only `/in/` paths are lower-cased. `/company/` and other page types keep their
+path, and a URL that is not LinkedIn at all is left as typed apart from a scheme,
+since rewriting it would throw away something a reviewer may want.
+
+The reviewer email renders it as a real anchor, passed as a template parameter
+rather than a token so the template can distinguish an optional field nobody
+filled in from a rendering fault. An empty one reads "not supplied" rather than
+leaving a blank cell or an empty `href`.
+
+The form shows a placeholder, `linkedin.com/in/yourname`, and deliberately does
+not prefill. Prefilling an optional field means everyone who skips it submits a
+stub that looks like data and is a dead link.

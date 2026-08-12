@@ -52,6 +52,78 @@ function openar_discord_link_for(int $contactId): string {
     . '&cs=' . \CRM_Contact_BAO_Contact_Utils::generateChecksum($contactId);
 }
 
+/**
+ * Rewrite whatever was typed into the LinkedIn field as a canonical profile URL.
+ *
+ * The field exists so a reviewer can click through and confirm the applicant is
+ * who they say. People paste bare handles, addresses with no scheme, and URLs
+ * trailing ?originalSubdomain= and tracking parameters. Storing one shape makes
+ * the reviewer's one job one click.
+ *
+ * Anything not recognisably LinkedIn is left as typed apart from a scheme,
+ * because rewriting it would throw away something a reviewer may want to see.
+ */
+function openar_normalize_linkedin(string $raw): string {
+  $value = trim($raw);
+  if ($value === '') {
+    return '';
+  }
+
+  $value = (string) preg_replace('#^[a-z][a-z0-9+.-]*://#i', '', $value);
+  $value = ltrim($value, '/');
+  $value = preg_split('/[?#]/', $value, 2)[0];
+  $value = rtrim($value, '/');
+  if ($value === '') {
+    return '';
+  }
+
+  // Any linkedin.com host, including country subdomains. The path is otherwise
+  // kept as-is so /company/ and other page types survive rather than being
+  // forced into /in/.
+  if (preg_match('#^(?:[a-z0-9-]+\.)*linkedin\.com/(.+)$#i', $value, $m) === 1) {
+    return 'https://www.linkedin.com/' . openar_linkedin_path($m[1]);
+  }
+
+  // A bare handle, or one written as in/handle.
+  if (preg_match('#^(?:in/)?([A-Za-z0-9%_-]+)$#i', $value, $m) === 1) {
+    return 'https://www.linkedin.com/in/' . strtolower($m[1]);
+  }
+
+  return 'https://' . $value;
+}
+
+/**
+ * Lower-case a personal profile path.
+ *
+ * LinkedIn resolves /IN/Grafrath perfectly well, so this is not about the link
+ * working. It is about two people typing the same profile differently and
+ * ending up with two spellings on file, which is the thing normalizing was for.
+ * Only /in/ is touched; other page types are left exactly as given.
+ */
+function openar_linkedin_path(string $path): string {
+  if (preg_match('#^in/(.+)$#i', $path, $m) === 1) {
+    return 'in/' . strtolower($m[1]);
+  }
+  return $path;
+}
+
+/** Store the canonical form when it differs from what was typed. */
+function openar_normalize_linkedin_on(int $contactId): void {
+  $current = (string) (\Civi\Api4\Contact::get(FALSE)
+    ->addSelect('Membership.linkedin_url')
+    ->addWhere('id', '=', $contactId)
+    ->execute()->first()['Membership.linkedin_url'] ?? '');
+
+  $clean = openar_normalize_linkedin($current);
+
+  if ($clean !== '' && $clean !== $current) {
+    \Civi\Api4\Contact::update(FALSE)
+      ->addWhere('id', '=', $contactId)
+      ->addValue('Membership.linkedin_url', mb_substr($clean, 0, 255))
+      ->execute();
+  }
+}
+
 /** One courtesy email per address per this many hours, so the form cannot be used to flood a member's inbox. */
 const OPENAR_REPEAT_NOTICE_HOURS = 24;
 const OPENAR_REPEAT_ACTIVITY = 'Membership application received from an address already on file';
@@ -695,6 +767,7 @@ function openar_handle_new_contact(int $contactId): void {
     return;
   }
 
+  openar_normalize_linkedin_on((int) $contact['id']);
   openar_add_to_review_queue((int) $contact['id']);
 
   // Applicants already on file for another reason, a supporter's signer or a
@@ -798,6 +871,12 @@ function openar_notify_reviewers(int $contactId, array $duplicates = []): void {
     'tplParams' => [
       'duplicateWarningText' => $warningText,
       'duplicateWarningHtml' => $warningHtml,
+      // Passed rather than left as a token so the template can tell "not
+      // supplied" from an empty cell, and can make it a real link.
+      'linkedinUrl' => (string) (\Civi\Api4\Contact::get(FALSE)
+        ->addSelect('Membership.linkedin_url')
+        ->addWhere('id', '=', $contactId)
+        ->execute()->first()['Membership.linkedin_url'] ?? ''),
     ],
   ]);
 }

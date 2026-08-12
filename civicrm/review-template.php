@@ -7,6 +7,10 @@ $title = 'OpenAR - New membership application for review';
 $view = 'https://join.openarcollective.org/civicrm/?page=CiviCRM&q=civicrm/contact/view&reset=1&cid={contact.id}';
 
 /**
+ * LinkedIn is passed in as a template parameter rather than a token, so the
+ * template can render it as a real anchor and can tell an empty optional field
+ * from a rendering fault. Employer stays a token because it is always present.
+ *
  * Custom fields are exposed to the token processor as {contact.custom_N}, not by
  * the API name. Resolving N here rather than hardcoding it keeps the template
  * correct if a field is ever rebuilt, and fails loudly instead of silently
@@ -25,9 +29,7 @@ function openar_token(string $group, string $field): string {
 }
 
 $employer = openar_token('Membership', 'employer_affiliation');
-$linkedin = openar_token('Membership', 'linkedin_url');
 echo "employer token: $employer
-linkedin token: $linkedin
 ";
 
 $text = <<<TXT
@@ -37,7 +39,7 @@ Name:       {contact.display_name}
 Email:      {contact.email_primary.email}
 Employer:   $employer
 Role:       {contact.job_title}
-LinkedIn:   $linkedin
+LinkedIn:   {\$linkedinUrl|default:'not supplied'}
 
 Review the record:
 $view
@@ -62,7 +64,7 @@ $html = <<<HTML
   <tr><td><strong>Email</strong></td><td>{contact.email_primary.email}</td></tr>
   <tr><td><strong>Employer</strong></td><td>$employer</td></tr>
   <tr><td><strong>Role</strong></td><td>{contact.job_title}</td></tr>
-  <tr><td><strong>LinkedIn</strong></td><td>$linkedin</td></tr>
+  <tr><td><strong>LinkedIn</strong></td><td>{if \$linkedinUrl}<a href="{\$linkedinUrl}">{\$linkedinUrl}</a>{else}<em>not supplied</em>{/if}</td></tr>
 </table>
 
 <p><a href="$view">Review the record</a></p>
