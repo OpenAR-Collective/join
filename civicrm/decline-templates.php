@@ -33,28 +33,61 @@ $templates[] = [
   'msg_text' => <<<'TEXT'
 Hello {$firstName},
 
-Thank you for applying, and for the time it took you. I am sorry to tell you that the Foundation has not approved your application.
+Thank you for applying, and for the time it took you. I am sorry to tell you that the Foundation has not approved your application for the reason stated below.
 
 {$reason}
 
-That is a decision about one application. It is not a judgment of you or of your work, and it is not permanent. If we have misread something, or if your circumstances change, write and tell us and we will look again.
+What this decision is not
+-------------------------
 
-You can also ask the Board to review the decision. Write to {$appealInbox}, say why you think it was wrong, and it will be put to the Board. Under the Membership Application you have one appeal.
+The Community Programs and Standards Policy says admission will not be conditioned on agency size, organization type, trade association affiliation, employer, financial contribution, business model, or any viewpoint regarding industry practices. That binds the Foundation, and it bound this decision. Nothing about your politics, your beliefs, who you work for, or what you think of the industry played any part in it.
 
-None of this touches your access to the Foundation's work. Everything the Foundation publishes is free on openarcollective.org, with no account, no membership, and no sign-in. You are as welcome to use it today as you were yesterday.
+The policy is published in full, and you are welcome to read the rules this was decided under:
+https://openarcollective.org/policies/community-programs-and-standards/
+
+What membership is for
+----------------------
+
+It is worth being plain about this, because membership is easy to mistake for something larger than it is. Membership is recognition that you are part of the Foundation's community, and it opens the members-only areas of the Discord server where practitioners talk to each other. That is all it is. It is not a license, a certification, a qualification, or a credential, and it carries no vote and no governance role. The Foundation does not publish a list of its members.
+
+Your access to the work is unchanged
+------------------------------------
+
+None of this touches what the Foundation actually produces. Everything it publishes is free at https://openarcollective.org with no account, no membership and no sign-in, and its software is developed in the open at https://github.com/OpenAR-Collective under the Apache License. You are as welcome to use all of it today as you were yesterday, and you always will be.
+
+If this is wrong
+----------------
+
+The decision is about one application, it is not a judgment of you or your work, and it is not permanent. If we have misread something, or if your circumstances change, write and tell us and we will look again.
+
+You can also ask the Board to review it. Write to {$appealInbox}, say why you think it was wrong, and it will be put to the Board. Under the Membership Application you have one appeal.
 TEXT,
   'msg_html' => <<<'HTML'
 <p>Hello {$firstName},</p>
 
-<p>Thank you for applying, and for the time it took you. I am sorry to tell you that the Foundation has not approved your application.</p>
+<p>Thank you for applying, and for the time it took you. I am sorry to tell you that the Foundation has not approved your application for the reason stated below.</p>
 
 <p style="padding:12px 16px;border-left:3px solid #b8b0a4;background:#f6f4f0;">{$reason}</p>
 
-<p>That is a decision about one application. It is not a judgment of you or of your work, and it is not permanent. If we have misread something, or if your circumstances change, write and tell us and we will look again.</p>
+<h3 style="margin:26px 0 6px;">What this decision is not</h3>
 
-<p>You can also ask the Board to review the decision. Write to <a href="mailto:{$appealInbox}">{$appealInbox}</a>, say why you think it was wrong, and it will be put to the Board. Under the Membership Application you have one appeal.</p>
+<p>The Community Programs and Standards Policy says admission will not be conditioned on agency size, organization type, trade association affiliation, employer, financial contribution, business model, or any viewpoint regarding industry practices. That binds the Foundation, and it bound this decision. Nothing about your politics, your beliefs, who you work for, or what you think of the industry played any part in it.</p>
 
-<p>None of this touches your access to the Foundation's work. Everything the Foundation publishes is free on <a href="https://openarcollective.org">openarcollective.org</a>, with no account, no membership, and no sign-in. You are as welcome to use it today as you were yesterday.</p>
+<p>The policy is published in full, and you are welcome to read the rules this was decided under: <a href="https://openarcollective.org/policies/community-programs-and-standards/">Community Programs and Standards Policy</a>.</p>
+
+<h3 style="margin:26px 0 6px;">What membership is for</h3>
+
+<p>It is worth being plain about this, because membership is easy to mistake for something larger than it is. Membership is recognition that you are part of the Foundation's community, and it opens the members-only areas of the Discord server where practitioners talk to each other. That is all it is. It is not a license, a certification, a qualification, or a credential, and it carries no vote and no governance role. The Foundation does not publish a list of its members.</p>
+
+<h3 style="margin:26px 0 6px;">Your access to the work is unchanged</h3>
+
+<p>None of this touches what the Foundation actually produces. Everything it publishes is free at <a href="https://openarcollective.org">openarcollective.org</a> with no account, no membership and no sign-in, and its software is developed in the open at <a href="https://github.com/OpenAR-Collective">github.com/OpenAR-Collective</a> under the Apache License. You are as welcome to use all of it today as you were yesterday, and you always will be.</p>
+
+<h3 style="margin:26px 0 6px;">If this is wrong</h3>
+
+<p>The decision is about one application, it is not a judgment of you or your work, and it is not permanent. If we have misread something, or if your circumstances change, write and tell us and we will look again.</p>
+
+<p>You can also ask the Board to review it. Write to <a href="mailto:{$appealInbox}">{$appealInbox}</a>, say why you think it was wrong, and it will be put to the Board. Under the Membership Application you have one appeal.</p>
 HTML,
 ];
 
