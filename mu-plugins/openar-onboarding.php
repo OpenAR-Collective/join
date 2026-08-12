@@ -306,7 +306,10 @@ function openar_lookup_by_email(string $email): ?array {
     $groups[] = $g['group_id:name'];
   }
 
-  if (in_array(OPENAR_MEMBERS_GROUP, $groups, TRUE)) {
+  // A member number is evidence of membership in its own right. Relying only on
+  // the group missed a record that held number 1 but had never been added to
+  // it, and let that person apply again as though unknown.
+  if (in_array(OPENAR_MEMBERS_GROUP, $groups, TRUE) || !empty($contact['Membership.member_number'])) {
     $state = 'member';
   }
   elseif (in_array(OPENAR_REVIEW_GROUP, $groups, TRUE)) {
@@ -782,26 +785,85 @@ function openar_handle_new_contact(int $contactId): void {
   openar_notify_reviewers((int) $contact['id'], $duplicates);
 }
 
-/** Other contacts sharing this one's email address. */
+/**
+ * Other records that look like the same person.
+ *
+ * Matching on the email address alone is not enough, and the normal case proves
+ * it: someone already on file under a personal address applies from a work one.
+ * Nothing about that is unusual, and an exact-email check never sees it.
+ *
+ * So CiviCRM's own Supervised dedupe rule is asked first, which weighs first
+ * name, last name and email together and is tunable under Administer > Manage
+ * Deduplication Rules without touching this code. An exact match on both names
+ * is then added, because the Supervised rule scores name alone below its
+ * threshold and would miss two records with no address in common.
+ *
+ * This only ever raises a warning for a reviewer, so a false positive costs a
+ * glance. A miss costs a duplicate member record.
+ */
 function openar_find_duplicates(int $contactId): array {
+  $me = \Civi\Api4\Contact::get(FALSE)
+    ->addSelect('first_name', 'last_name', 'contact_type')
+    ->addWhere('id', '=', $contactId)
+    ->execute()->first();
+
+  if (!$me) {
+    return [];
+  }
+
   $email = \Civi\Api4\Email::get(FALSE)
     ->addSelect('email')
     ->addWhere('contact_id', '=', $contactId)
     ->addOrderBy('is_primary', 'DESC')
-    ->execute()->first()['email'] ?? NULL;
+    ->execute()->first()['email'] ?? '';
 
-  if (!$email) {
-    return [];
+  $ids = [];
+
+  // CiviCRM's Supervised rule. API4's getDuplicates does not honour the rule
+  // the way this does, so the v3 action is used deliberately.
+  try {
+    $match = array_filter([
+      'contact_type' => $me['contact_type'] ?? 'Individual',
+      'first_name' => $me['first_name'] ?? '',
+      'last_name' => $me['last_name'] ?? '',
+      'email' => $email,
+    ]);
+    $found = civicrm_api3('Contact', 'duplicatecheck', ['match' => $match]);
+    foreach (array_keys((array) ($found['values'] ?? [])) as $id) {
+      $ids[(int) $id] = TRUE;
+    }
+  }
+  catch (\Throwable $e) {
+    \Civi::log()->warning('OpenAR onboarding: dedupe check failed for {cid}: {msg}', [
+      'cid' => $contactId,
+      'msg' => $e->getMessage(),
+    ]);
   }
 
+  // Same first and last name, whatever the address.
+  if (!empty($me['first_name']) && !empty($me['last_name'])) {
+    foreach (\Civi\Api4\Contact::get(FALSE)
+      ->addSelect('id')
+      ->addWhere('first_name', '=', $me['first_name'])
+      ->addWhere('last_name', '=', $me['last_name'])
+      ->addWhere('is_deleted', '=', FALSE)
+      ->execute() as $row) {
+      $ids[(int) $row['id']] = TRUE;
+    }
+  }
+
+  unset($ids[$contactId]);
+
   $found = [];
-  foreach (\Civi\Api4\Email::get(FALSE)
-    ->addSelect('contact_id', 'contact_id.display_name')
-    ->addWhere('email', '=', $email)
-    ->addWhere('contact_id', '!=', $contactId)
-    ->addWhere('contact_id.is_deleted', '=', FALSE)
-    ->execute() as $row) {
-    $found[(int) $row['contact_id']] = $row['contact_id.display_name'];
+  foreach (array_keys($ids) as $id) {
+    $other = \Civi\Api4\Contact::get(FALSE)
+      ->addSelect('id', 'display_name')
+      ->addWhere('id', '=', $id)
+      ->addWhere('is_deleted', '=', FALSE)
+      ->execute()->first();
+    if ($other) {
+      $found[(int) $other['id']] = $other['display_name'];
+    }
   }
 
   return $found;
@@ -1012,6 +1074,151 @@ function openar_decline_applicant(int $contactId): void {
       ->addValue('Membership.declined_date', date('Y-m-d H:i:s'))
       ->execute();
   }
+}
+
+add_action('civicrm_pageRun', 'openar_onboarding_page_run', 10, 1);
+add_action('civicrm_alterContent', 'openar_onboarding_alter_content', 10, 4);
+
+/**
+ * Work out what the confirmation page should say, while the token is still in
+ * the query string.
+ *
+ * CRM_Afform_Page_Verify assigns only whether it worked, so its template cannot
+ * say anything specific about what happens next. Overriding that template
+ * through customTemplateDir does not take, because the extension's own template
+ * directory wins the search order. The page is therefore rendered in
+ * openar_onboarding_alter_content(), matched on the template name, which no
+ * directory ordering can defeat.
+ */
+function openar_onboarding_page_run(&$page): void {
+  if (!is_object($page) || get_class($page) !== 'CRM_Afform_Page_Verify') {
+    return;
+  }
+
+  $state = ['verified' => FALSE, 'kind' => 'membership'];
+
+  try {
+    $token = $_GET['token'] ?? '';
+    if (is_string($token) && $token !== '') {
+      $claims = \Civi::service('crypto.jwt')->decode($token);
+      $sid = (int) ($claims['submissionId'] ?? 0);
+      if ($sid) {
+        $submission = \Civi\Api4\AfformSubmission::get(FALSE)
+          ->addSelect('afform_name', 'status_id:name')
+          ->addWhere('id', '=', $sid)
+          ->execute()->first();
+        if ($submission) {
+          // The page has already processed it by the time this hook runs, so
+          // Processed is the success case.
+          $state['verified'] = ($submission['status_id:name'] === 'Processed');
+          $config = openar_form_config($submission['afform_name']);
+          if ($config) {
+            $state['kind'] = $config['kind'];
+          }
+        }
+      }
+    }
+  }
+  catch (\Throwable $e) {
+    // An expired or unreadable token is simply not verified, which is the
+    // branch the copy already handles.
+  }
+
+  openar_verify_state($state);
+}
+
+/** Carry the outcome from pageRun to alterContent within a single request. */
+function openar_verify_state(?array $set = NULL): ?array {
+  static $state = NULL;
+  if ($set !== NULL) {
+    $state = $set;
+  }
+  return $state;
+}
+
+function openar_onboarding_alter_content(&$content, $context, $tplName, &$object): void {
+  if ($tplName !== 'CRM/Afform/Page/Verify.tpl') {
+    return;
+  }
+  $state = openar_verify_state();
+  if ($state === NULL) {
+    return;
+  }
+  $content = openar_verify_html((bool) $state['verified'], (string) $state['kind']);
+}
+
+/**
+ * The page an applicant lands on after clicking their link.
+ *
+ * They have just handed over their details and want three things: confirmation
+ * that it worked, what happens now, and whether anything is expected of them.
+ * The stock page answers only the first.
+ */
+function openar_verify_html(bool $verified, string $kind): string {
+  $help = '<a href="mailto:membership@openarcollective.org">membership@openarcollective.org</a>';
+
+  if (!$verified) {
+    return '<div class="oar-verify">'
+      . '<h2>That link could not be used.</h2>'
+      . '<p>Confirmation links stop working once they have been used, and they expire seven days '
+      . 'after the form was sent. Nothing is wrong with the details you gave.</p>'
+      . '<h3>What to do</h3>'
+      . '<ul>'
+      . '<li>If you have already confirmed once, you are done, and you can ignore this page.</li>'
+      . '<li>If the link has expired, fill the form in again at '
+      . '<a href="https://join.openarcollective.org/apply">join.openarcollective.org/apply</a> for '
+      . 'membership, or <a href="https://join.openarcollective.org/sign">join.openarcollective.org/sign</a> '
+      . 'for the Statement of Support. A fresh link is sent straight away.</li>'
+      . '<li>If your email program split the link across two lines, try copying the whole address '
+      . 'into your browser.</li>'
+      . '</ul>'
+      . '<p>If none of that works, write to ' . $help . ' and a person will sort it out.</p>'
+      . '</div>';
+  }
+
+  if ($kind === 'supporter') {
+    return '<div class="oar-verify">'
+      . '<h2>Thank you. Your signature is confirmed.</h2>'
+      . '<p>The Statement of Support is now with the Foundation, recorded in your '
+      . 'organization&rsquo;s name.</p>'
+      . '<h3>What happens next</h3>'
+      . '<ol>'
+      . '<li>Someone at the Foundation checks the signature, chiefly that the person who signed can '
+      . 'speak for the organization. This usually takes a few days.</li>'
+      . '<li>If anything needs clarifying, we will write to the address you gave.</li>'
+      . '<li>Once confirmed, your organization appears on the public roster at '
+      . '<a href="https://openarcollective.org/supporters">openarcollective.org/supporters</a>, in '
+      . 'alphabetical order, on the same terms as everyone else. You will get an email when it is '
+      . 'listed.</li>'
+      . '</ol>'
+      . '<p>There is nothing further for you to do, and nothing to pay. Signing carries no financial '
+      . 'commitment of any kind, now or ever.</p>'
+      . '<p>To send a logo for the roster, to correct anything, or to withdraw, write to ' . $help
+      . '. Withdrawal is honored promptly and needs no reason.</p>'
+      . '</div>';
+  }
+
+  return '<div class="oar-verify">'
+    . '<h2>Thank you. Your email address is confirmed.</h2>'
+    . '<p>Your application is now with the Foundation.</p>'
+    . '<h3>What happens next</h3>'
+    . '<ol>'
+    . '<li>A person reviews the employer or affiliation you gave. That confirms you are who you say '
+    . 'you are. It is not a screening for favored participants, and it does not weigh your '
+    . 'employer&rsquo;s size, business model, or reputation. It usually takes a few days.</li>'
+    . '<li>If anything needs clarifying, we will write to you before deciding.</li>'
+    . '<li>On approval you will get an email with your member number and a link that connects your '
+    . 'Discord account, putting you straight into the members-only areas of the Foundation&rsquo;s '
+    . 'server.</li>'
+    . '</ol>'
+    . '<p>There is nothing further for you to do, and nothing to pay. Membership is free and always '
+    . 'will be.</p>'
+    . '<p><strong>You do not need membership to use any of the Foundation&rsquo;s work.</strong> '
+    . 'Everything it publishes is free at '
+    . '<a href="https://openarcollective.org">openarcollective.org</a>, with no account and no '
+    . 'sign-in. Membership adds the peer community, nothing more.</p>'
+    . '<p>Questions go to ' . $help . '.</p>'
+    . '</div>';
 }
 
 add_action('civicrm_postCommit', 'openar_onboarding_contact_commit', 10, 4);

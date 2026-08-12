@@ -444,3 +444,39 @@ So the form submissions list, which shows unconfirmed applications:
 ```
 https://join.openarcollective.org/wp-admin/admin.php?page=CiviCRM&q=civicrm/admin/afform/submissions&reset=1
 ```
+
+## Submitting a form sends people to a page
+
+Afform stays put and shows a message in place, which reads as nothing happening:
+the button says Saving and the page does not move. Worse, the membership form's
+message still promised the link would expire "in ten minutes" long after it
+became seven days, and the Statement of Support had no message at all.
+
+`sent-pages.php` creates `/application-sent` and `/statement-sent` and points
+each form's `redirect` at them. The pages say the one thing that matters at that
+moment: go and look in your inbox, because nothing has been recorded yet. The
+confirmation messages are corrected too, since they still show if a redirect
+cannot be followed.
+
+## Duplicates are found with CiviCRM's rules, not just an email match
+
+Matching on email alone misses the ordinary case: someone already on file under
+a personal address applies from a work one. `openar_find_duplicates()` asks
+CiviCRM's Supervised dedupe rule through `civicrm_api3('Contact',
+'duplicatecheck')`, then adds an exact first-and-last-name match, because the
+Supervised rule scores a name alone below its threshold and would miss two
+records with no address in common.
+
+API4's `Contact.getDuplicates` does not honour the rule the same way and returns
+nothing here, so the v3 action is used deliberately.
+
+The rules themselves are tunable under Administer > Manage Deduplication Rules
+without touching this code. It only ever raises a warning for a reviewer, so a
+false positive costs a glance while a miss costs a duplicate member record.
+
+## A member number counts as membership
+
+`openar_lookup_by_email()` decided membership from group membership alone. A
+record holding member number 1 that had never been added to the members group
+therefore read as merely "known", and that person could apply again as though
+unknown. A member number is now evidence in its own right.

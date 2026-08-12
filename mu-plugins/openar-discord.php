@@ -271,6 +271,21 @@ function openar_discord_callback(): void {
 
   openar_discord_record($contactId, $discordUser);
 
+  // Someone who outranks the bot keeps the roles and nickname they already had.
+  // Say so rather than dropping them into the server wondering whether it
+  // worked, since for them nothing visibly changed.
+  if (openar_discord_outranked()) {
+    openar_discord_page('You are already in the server',
+      '<p>Your Discord account is now linked to your membership record.</p>'
+      . '<p>Your existing roles and nickname were left exactly as they were. You already hold '
+      . 'permissions above the Foundation&rsquo;s bot, so it is not allowed to change them, and it '
+      . 'has not tried. Nothing about your access has altered.</p>'
+      . '<p><a href="https://discord.com/channels/'
+      . rawurlencode(openar_discord_setting('OPENAR_DISCORD_GUILD_ID'))
+      . '">Open the Discord server</a></p>');
+    return;
+  }
+
   wp_redirect('https://discord.com/channels/' . openar_discord_setting('OPENAR_DISCORD_GUILD_ID'), 302, 'OpenAR');
 }
 
@@ -369,15 +384,46 @@ function openar_discord_add_to_guild(int $contactId, array $discordUser, string 
     ])),
   ]);
 
-  if ($patch['code'] !== 200) {
-    \Civi::log()->error('OpenAR Discord: role and nickname patch returned {code} {body}', [
-      'code' => $patch['code'],
-      'body' => wp_json_encode($patch['body']),
-    ]);
-    return FALSE;
+  if ($patch['code'] === 200) {
+    return TRUE;
   }
 
-  return TRUE;
+  // Discord refuses to let a bot change the roles or nickname of anyone whose
+  // highest role sits above the bot's, and returns 50013 for it. No bot
+  // permission overrides that; hierarchy always wins. It is the normal outcome
+  // for the Foundation's own admins and moderators, who already outrank the
+  // bot by design.
+  //
+  // They are in the server, which was the point. Reporting "could not add you"
+  // to someone who is already sitting in the guild with more access than the
+  // bot has is simply wrong, so this counts as success and the page says what
+  // was and was not done.
+  $discordCode = (int) ($patch['body']['code'] ?? 0);
+  if ($patch['code'] === 403 && $discordCode === 50013) {
+    \Civi::log()->info('OpenAR Discord: contact {cid} is already in the guild and outranks the bot, so roles and nickname were left alone', [
+      'cid' => $contactId,
+    ]);
+    openar_discord_outranked(TRUE);
+    return TRUE;
+  }
+
+  \Civi::log()->error('OpenAR Discord: role and nickname patch returned {code} {body}', [
+    'code' => $patch['code'],
+    'body' => wp_json_encode($patch['body']),
+  ]);
+  return FALSE;
+}
+
+/**
+ * Whether this request hit the role hierarchy, carried from the guild call to
+ * the page that reports the outcome.
+ */
+function openar_discord_outranked(?bool $set = NULL): bool {
+  static $outranked = FALSE;
+  if ($set !== NULL) {
+    $outranked = $set;
+  }
+  return $outranked;
 }
 
 /** Their real name, since Foundation spaces run under real names. Discord caps this at 32. */

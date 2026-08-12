@@ -40,7 +40,7 @@ $layout = <<<'SUPPORTER_LAYOUT'
     
     <h3 class="oar-h">Our mission</h3>
 <blockquote class="oar-mission"><p>The Open Accounts Receivable Collective Foundation works to make accounts receivable and debt collection more transparent, more compliant, and more accountable to the consumers it touches. It builds software under an open-source license so anyone can run, inspect, modify, and redistribute it at no cost. The Foundation also publishes open educational and compliance resources, develops shared standards, delivers training, and maintains a neutral, community-governed commons where practitioners learn from one another.</p></blockquote>
-    <af-field name="MissionSupporter.mission_affirmation_org" defn="{required: true, input_type: 'CheckBox', label: 'Our organization has read the mission statement above, and supports the Foundation&rsquo;s charitable mission.'}" />
+    <af-field name="MissionSupporter.mission_affirmation_org" defn="{required: true, input_type: 'CheckBox', label: 'We have read the mission statement and support the Foundation&rsquo;s charitable mission.'}" />
     <h3 class="oar-h">Your organization</h3>
     <div class="af-container af-layout-cols2">
       <af-field name="organization_name" defn="{required: true, label: 'Organization legal name'}" />
@@ -105,7 +105,7 @@ $layout = <<<'SUPPORTER_LAYOUT'
 <h2 id="other-terms">Other Terms</h2>
 <p>This Statement is not a contract for goods or services and creates no financial obligation on either party. It binds your organization to the version signed; if the Foundation issues a later version, your organization stays on this one unless it chooses to sign the newer version. The program is administered under a policy adopted by the Foundation’s Board of Directors, which the Board may amend or discontinue.</p></div>
     <af-field name="MissionSupporter.terms_agreement_org" defn="{required: true, input_type: 'CheckBox', label: 'Our organization has read and agrees to the Community Participation Terms above.'}" />
-    <af-field name="MissionSupporter.authority_representation" defn="{required: true, input_type: 'CheckBox', label: 'I have authority to bind the organization named above, and the information provided is truthful and current.'}" />
+    <af-field name="MissionSupporter.authority_representation" defn="{required: true, input_type: 'CheckBox', label: 'I have authority to bind the organization, and the information is truthful and current.'}" />
   </fieldset>
   <button class="af-button btn btn-primary" ng-click="afform.submit()">Sign the Statement</button>
 </af-form>
