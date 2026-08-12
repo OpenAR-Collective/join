@@ -68,34 +68,38 @@ $templates[] = [
   'msg_text' => <<<'TEXT'
 Hello {$firstName},
 
-Thank you for standing with us. A Mission Supporter Statement of Support was signed in your organization's name, giving this address as the signer, and one step is left: confirm that this address is yours.
+Thank you for standing with us. A Mission Supporter Statement of Support was signed in your organization's name, giving this address as the signer. Please confirm that this was you.
 
 Open this link to confirm:
 
 {$verifyUrl}
 
-Nothing is recorded, and your organization is not listed anywhere, until you confirm. The link works once and is valid for {$expiryDays} days. If it lapses, you can sign again at SIGN_URL_HERE.
+The link works once and is valid for {$expiryDays} days. If it lapses, you can sign again at SIGN_URL_HERE.
 
-After you confirm, someone here reads the signature before your organization appears on the public roster. Signing costs nothing and carries no financial commitment of any kind, now or ever.
+After you confirm, someone at the OpenAR Collective will review and validate your submission before your organization appears on the public roster. This human review step is meant to verify, to the best of our ability, that the information provided is valid. It is not a restriction based on your organization's political affiliations, stance towards the accounts receivable industry, or any other bias.
 
-If you did not sign, and did not ask anyone to sign on your behalf, please tell us at membership@openarcollective.org. Ignoring this message also works, because nothing happens without your confirmation.
+Signing costs nothing and carries no financial commitment of any kind, now or ever.
+
+If you did not sign, and did not ask anyone to sign on your behalf, please tell us at membership@openarcollective.org. Or you can discard this message, because nothing is added to our database without your confirmation.
 TEXT,
   'msg_html' => <<<'HTML'
 <p>Hello {$firstName},</p>
 
-<p>Thank you for standing with us. A Mission Supporter Statement of Support was signed in your organization's name, giving this address as the signer, and one step is left: confirm that this address is yours.</p>
+<p>Thank you for standing with us. A Mission Supporter Statement of Support was signed in your organization's name, giving this address as the signer. Please confirm that this was you.</p>
 
 <p><a href="{$verifyUrl}" style="display:inline-block;padding:12px 22px;background:#e8a020;color:#161410;font-family:Arial,Helvetica,sans-serif;font-weight:600;text-decoration:none;border-radius:3px;">Confirm this signature</a></p>
 
-<p>Nothing is recorded, and your organization is not listed anywhere, until you confirm. The link works once and is valid for {$expiryDays} days. If it lapses, you can sign again at <a href="SIGN_URL_HERE">join.openarcollective.org/sign</a>.</p>
+<p>The link works once and is valid for {$expiryDays} days. If it lapses, you can sign again at <a href="SIGN_URL_HERE">join.openarcollective.org/sign</a>.</p>
 
-<p>After you confirm, someone here reads the signature before your organization appears on the public roster. Signing costs nothing and carries no financial commitment of any kind, now or ever.</p>
+<p>After you confirm, someone at the OpenAR Collective will review and validate your submission before your organization appears on the public roster. This human review step is meant to verify, to the best of our ability, that the information provided is valid. It is not a restriction based on your organization's political affiliations, stance towards the accounts receivable industry, or any other bias.</p>
+
+<p>Signing costs nothing and carries no financial commitment of any kind, now or ever.</p>
 
 <p>If the button does not work, copy this address into your browser:</p>
 
 <p style="font-family:monospace;font-size:13px;word-break:break-all;">{$verifyUrl}</p>
 
-<p>If you did not sign, and did not ask anyone to sign on your behalf, please tell us at <a href="mailto:membership@openarcollective.org">membership@openarcollective.org</a>. Ignoring this message also works, because nothing happens without your confirmation.</p>
+<p>If you did not sign, and did not ask anyone to sign on your behalf, please tell us at <a href="mailto:membership@openarcollective.org">membership@openarcollective.org</a>. Or you can discard this message, because nothing is added to our database without your confirmation.</p>
 HTML,
 ];
 

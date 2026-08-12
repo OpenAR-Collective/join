@@ -44,8 +44,12 @@ $layout = <<<'SUPPORTER_LAYOUT'
     <h3 class="oar-h">Your organization</h3>
     <div class="af-container af-layout-cols2">
       <af-field name="organization_name" defn="{required: true, label: 'Organization legal name'}" />
-      <af-field name="MissionSupporter.trade_name" defn="{required: false, label: 'Trade name, if different', help_post: 'This is the name shown on the Foundation&rsquo;s public roster at <a href=&quot;https://openarcollective.org/supporters&quot; target=&quot;_blank&quot; rel=&quot;noopener&quot;>openarcollective.org/supporters</a>. Leave it blank to be listed under your legal name.'}" />
+      <af-field name="MissionSupporter.trade_name" defn="{required: false, label: 'Trade name, if different'}" />
     </div>
+    <!-- Below both boxes rather than attached to one of them, because it is
+         about which of the two gets published, and hanging it under the trade
+         name read as a note about the trade name alone. -->
+    <p class="description">The name shown on the Foundation&rsquo;s public roster at <a href="https://openarcollective.org/supporters" target="_blank" rel="noopener">openarcollective.org/supporters</a> will be your trade name, if provided. If no trade name is provided, your legal name will be used instead.</p>
     <af-field name="MissionSupporter.website_url" defn="{required: false, label: 'Website'}" />
     <h3 class="oar-h">About you</h3>
     <div class="af-container af-layout-cols2">
