@@ -110,7 +110,7 @@ The review is a check that the information given is valid, to the best of our ab
 The rules this was decided under are published in full, and you are welcome to read them:
 https://openarcollective.org/policies/community-programs-and-standards/
 
-If you think the decision is wrong, you can ask the Board to review it. Write to {$appealInbox}, say why, and it will be put to the Board, whose decision is final. That is one appeal, as the policy provides.
+If you think the decision is wrong, you can ask the Board to review it. Write to {$appealInbox}, say why, and it will be put to the Board, whose decision is final. Section 7.6 of the Community Programs and Standards Policy gives thirty days from this message to do that, and one appeal. It also says that nothing stops your organization signing again at any time.
 
 Nothing else changes. Everything the Foundation publishes is free on openarcollective.org, with no account and no sign-in, and your organization is as welcome to use it today as it was yesterday.
 TEXT;
@@ -128,7 +128,7 @@ $html = <<<'HTML'
 
 <p>The rules this was decided under are published in full, and you are welcome to read them: <a href="https://openarcollective.org/policies/community-programs-and-standards/">Community Programs and Standards Policy</a>.</p>
 
-<p>If you think the decision is wrong, you can ask the Board to review it. Write to <a href="mailto:{$appealInbox}">{$appealInbox}</a>, say why, and it will be put to the Board, whose decision is final. That is one appeal, as the policy provides.</p>
+<p>If you think the decision is wrong, you can ask the Board to review it. Write to <a href="mailto:{$appealInbox}">{$appealInbox}</a>, say why, and it will be put to the Board, whose decision is final. Section 7.6 of the Community Programs and Standards Policy gives thirty days from this message to do that, and one appeal. It also says that nothing stops your organization signing again at any time.</p>
 
 <p>Nothing else changes. Everything the Foundation publishes is free on <a href="https://openarcollective.org">openarcollective.org</a>, with no account and no sign-in, and your organization is as welcome to use it today as it was yesterday.</p>
 HTML;

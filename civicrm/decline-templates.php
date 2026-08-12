@@ -60,7 +60,7 @@ If this is wrong
 
 The decision is about one application, it is not a judgment of you or your work, and it is not permanent. If we have misread something, or if your circumstances change, write and tell us and we will look again.
 
-You can also ask the Board to review it. Write to {$appealInbox}, say why you think it was wrong, and it will be put to the Board, whose decision is final. That mirrors the single appeal the Community Programs and Standards Policy gives for a suspension or revocation.
+You can also ask the Board to review it. Write to {$appealInbox}, say why you think it was wrong, and it will be put to the Board, whose decision is final. Section 7.6 of the Community Programs and Standards Policy gives you thirty days from this message to do that, and one appeal. It also says that nothing stops you applying again at any time, which you are welcome to do.
 TEXT,
   'msg_html' => <<<'HTML'
 <p>Hello {$firstName},</p>
@@ -87,7 +87,7 @@ TEXT,
 
 <p>The decision is about one application, it is not a judgment of you or your work, and it is not permanent. If we have misread something, or if your circumstances change, write and tell us and we will look again.</p>
 
-<p>You can also ask the Board to review it. Write to <a href="mailto:{$appealInbox}">{$appealInbox}</a>, say why you think it was wrong, and it will be put to the Board, whose decision is final. That mirrors the single appeal the Community Programs and Standards Policy gives for a suspension or revocation.</p>
+<p>You can also ask the Board to review it. Write to <a href="mailto:{$appealInbox}">{$appealInbox}</a>, say why you think it was wrong, and it will be put to the Board, whose decision is final. Section 7.6 of the Community Programs and Standards Policy gives you thirty days from this message to do that, and one appeal. It also says that nothing stops you applying again at any time, which you are welcome to do.</p>
 HTML,
 ];
 
