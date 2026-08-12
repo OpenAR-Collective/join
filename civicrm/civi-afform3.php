@@ -7,6 +7,14 @@
  */
 civicrm_initialize();
 
+/*
+ * The LinkedIn field carries a placeholder rather than a prefilled value.
+ * Prefilling an optional field with "https://www.linkedin.com/in/" would mean
+ * everyone who skips it submits that stub, which looks like data, is a dead
+ * link, and cannot be told apart from a truncated entry by a reviewer scanning
+ * the queue. A placeholder shows the same shape and is never submitted.
+ */
+
 use Civi\Api4\Afform;
 
 $layout = <<<HTML
@@ -22,7 +30,7 @@ $layout = <<<HTML
     </div>
     <af-field name="Membership.employer_affiliation" defn="{required: true, label: 'Employer or affiliation'}" />
     <af-field name="job_title" defn="{required: true, label: 'Professional role or title'}" />
-    <af-field name="Membership.linkedin_url" defn="{required: false, label: 'LinkedIn profile', help_pre: 'Optional. It helps us confirm your professional engagement more quickly.'}" />
+    <af-field name="Membership.linkedin_url" defn="{required: false, label: 'LinkedIn profile', help_post: 'Optional. It helps us confirm your professional engagement more quickly.', input_attrs: {placeholder: 'linkedin.com/in/yourname'}}" />
     <af-field name="Membership.mission_affirmation" defn="{required: true, input_type: 'CheckBox', label: 'I have read the mission statement, and I support the Foundation\'s charitable mission'}" />
     <af-field name="Membership.terms_agreement" defn="{required: true, input_type: 'CheckBox', label: 'I have read and agree to the Community Participation Terms'}" />
     <af-field name="Membership.info_truthful" defn="{required: true, input_type: 'CheckBox', label: 'The information I have provided is truthful and current'}" />
