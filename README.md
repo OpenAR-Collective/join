@@ -42,7 +42,7 @@ nothing, apart from credentials.
 
 | Directory | What it holds |
 |---|---|
-| `mu-plugins/` | The three must-use plugins: onboarding, Discord connect, short URLs |
+| `mu-plugins/` | The four must-use plugins: onboarding, Discord connect, short URLs, admin screen |
 | `civicrm/` | Scripts that build the custom fields, groups, forms and email templates |
 | `wordpress/` | The join site's brand stylesheet and its installer |
 | `server/` | The roster publishing job and its GitHub App token minter |
@@ -62,3 +62,20 @@ the machine had been lost. They are all here now.
 The general rule this is worth remembering by: **if it took a decision to make,
 it belongs in the repository.** A form layout is a decision. A stylesheet is a
 decision. A field's help text is a decision.
+
+## Running the process without a terminal
+
+**Tools > OpenAR onboarding**, in wp-admin.
+
+It answers the one question nothing else can: who has filled in a form and not
+yet clicked the link in their email. CiviCRM's own Submissions screen lists those
+submissions but cannot identify them, because the applicant's name and address
+live inside the submission's data blob and its "Submitted by" column is the
+logged-in user, which for a public applicant is nobody at all.
+
+The screen shows name, address, which form, how long the link has left, and a
+button to send a fresh one. It also links to the review queues, the members
+group, and the supporter groups, so the day-to-day work has one starting point.
+
+`civicrm/pending-applications.php` still does the same job from a terminal, and
+is the fallback if the plugin is ever unloaded.
