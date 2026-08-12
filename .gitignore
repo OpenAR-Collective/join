@@ -18,3 +18,5 @@ logs/
 vendor/
 node_modules/
 local-hashes.txt
+lh.txt
+gen_hashes.py
