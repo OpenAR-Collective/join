@@ -177,6 +177,21 @@ const OPENAR_SUPPORTER_REVIEW_TEMPLATE = 'OpenAR - New Statement of Support for 
 const OPENAR_SUPPORTER_LISTED_TEMPLATE = 'OpenAR - Your organization is now listed';
 const OPENAR_SUPPORTER_LISTED_ACTIVITY = 'Mission Supporter listing confirmed';
 const OPENAR_SUPPORTERS_DECLINED_GROUP = 'supporters_declined';
+
+/**
+ * Revocation is not a decline, and the two must not share a path.
+ *
+ * A decline refuses somebody who was never admitted. A revocation takes
+ * participation away from somebody who has it, and Section 7.7 puts a year
+ * between them and reapplying. Sending a declined-applicant email to a revoked
+ * member would invite them back whenever they liked, which the policy does not.
+ */
+const OPENAR_MEMBERS_REVOKED_GROUP = 'members_revoked';
+const OPENAR_SUPPORTERS_REVOKED_GROUP = 'supporters_revoked';
+const OPENAR_MEMBER_REVOKE_TEMPLATE = 'OpenAR - Membership revoked';
+const OPENAR_SUPPORTER_REVOKE_TEMPLATE = 'OpenAR - Mission Supporter participation revoked';
+const OPENAR_REVOKE_INCOMPLETE_TEMPLATE = 'OpenAR - Revocation recorded without a reason';
+const OPENAR_REVOKE_ACTIVITY = 'Participation revoked';
 const OPENAR_SUPPORTER_DECLINE_TEMPLATE = 'OpenAR - Statement of Support declined';
 const OPENAR_SUPPORTER_DECLINE_ACTIVITY = 'Mission Supporter statement declined';
 
@@ -599,6 +614,175 @@ function openar_submission_entity_ids(array $data): array {
  * weight than it does for an individual.
  * ---------------------------------------------------------------------- */
 
+/* -------------------------------------------------------------------------
+ * Revocation. Participation taken away from somebody who had it, which under
+ * Section 7.7 carries a year before they may apply again. Both handlers end
+ * participation first and send second, so a missing reason delays the notice
+ * rather than leaving somebody a member who should not be one.
+ * ---------------------------------------------------------------------- */
+
+/** Membership revoked. End the access, then tell them why. */
+function openar_revoke_member(int $contactId): void {
+  $contact = \Civi\Api4\Contact::get(FALSE)
+    ->addSelect('id', 'first_name', 'display_name', 'contact_type',
+      'Membership.revocation_reason', 'Membership.revoked_date')
+    ->addWhere('id', '=', $contactId)
+    ->execute()->first();
+
+  if (!$contact || $contact['contact_type'] !== 'Individual') {
+    return;
+  }
+
+  // Out of the members group before anything else. Whatever happens to the
+  // email, somebody whose membership is revoked is not a member.
+  openar_remove_from_group($contactId, OPENAR_MEMBERS_GROUP);
+
+  $email = \Civi\Api4\Email::get(FALSE)
+    ->addSelect('email')
+    ->addWhere('contact_id', '=', $contactId)
+    ->addOrderBy('is_primary', 'DESC')
+    ->execute()->first()['email'] ?? '';
+
+  openar_send_revocation(
+    $contactId,
+    OPENAR_MEMBER_REVOKE_TEMPLATE,
+    (string) $email,
+    trim((string) ($contact['Membership.revocation_reason'] ?? '')),
+    ['firstName' => $contact['first_name'] ?: 'there'],
+    $contact,
+    'Membership.revoked_date',
+    (bool) $contact['Membership.revoked_date']
+  );
+}
+
+/** Mission Supporter participation revoked. Take it off the roster, then say why. */
+function openar_revoke_supporter(int $contactId): void {
+  $org = \Civi\Api4\Contact::get(FALSE)
+    ->addSelect('id', 'display_name', 'organization_name', 'contact_type',
+      'MissionSupporter.signer_email', 'MissionSupporter.signer_name',
+      'MissionSupporter.revocation_reason', 'MissionSupporter.revoked_date')
+    ->addWhere('id', '=', $contactId)
+    ->execute()->first();
+
+  if (!$org || $org['contact_type'] !== 'Organization') {
+    return;
+  }
+
+  // Off the published group, which is what the hourly roster sync reads, so the
+  // organization leaves openarcollective.org on the next run.
+  openar_remove_from_group($contactId, OPENAR_SUPPORTERS_PUBLISHED_GROUP);
+
+  openar_send_revocation(
+    $contactId,
+    OPENAR_SUPPORTER_REVOKE_TEMPLATE,
+    trim((string) ($org['MissionSupporter.signer_email'] ?? '')),
+    trim((string) ($org['MissionSupporter.revocation_reason'] ?? '')),
+    [
+      'firstName' => $org['MissionSupporter.signer_name'] ?: 'there',
+      'organizationName' => $org['organization_name'] ?: $org['display_name'],
+    ],
+    $org,
+    'MissionSupporter.revoked_date',
+    (bool) $org['MissionSupporter.revoked_date']
+  );
+}
+
+/**
+ * The half both revocations share: send once, stamp the date, and hold the
+ * notice rather than send a blank where the reason should be.
+ */
+function openar_send_revocation(int $contactId, string $template, string $email,
+  string $reason, array $params, array $contact, string $dateField, bool $alreadyStamped): void {
+
+  if (openar_already_revoked($contactId)) {
+    return;
+  }
+
+  if ($reason === '') {
+    // The policy requires that the basis be given, so nothing goes out until
+    // somebody writes one. Same safety net the decline has.
+    openar_notify_missing_revocation_reason($contactId, $contact['display_name'] ?? '');
+    return;
+  }
+
+  if ($email === '') {
+    \Civi::log()->warning('OpenAR onboarding: revoked contact {cid} has no address to tell',
+      ['cid' => $contactId]);
+    return;
+  }
+
+  $t = \Civi\Api4\MessageTemplate::get(FALSE)
+    ->addSelect('id')->addWhere('msg_title', '=', $template)->addWhere('is_active', '=', TRUE)
+    ->execute()->first();
+
+  if (!$t) {
+    \Civi::log()->error('OpenAR onboarding: revocation template {t} not found', ['t' => $template]);
+    return;
+  }
+
+  [$fromName, $fromEmail] = \CRM_Core_BAO_Domain::getNameAndEmail();
+
+  \CRM_Core_BAO_MessageTemplate::sendTemplate([
+    'messageTemplateID' => $t['id'],
+    'from' => sprintf('%s <%s>', $fromName, $fromEmail),
+    'toEmail' => $email,
+    'contactId' => $contactId,
+    'tokenContext' => ['contactId' => $contactId],
+    'tplParams' => $params + ['reason' => $reason, 'appealInbox' => OPENAR_APPEAL_INBOX],
+  ]);
+
+  \Civi\Api4\Activity::create(FALSE)
+    ->addValue('activity_type_id:name', 'Follow up')
+    ->addValue('subject', OPENAR_REVOKE_ACTIVITY)
+    ->addValue('target_contact_id', [$contactId])
+    ->addValue('source_contact_id', $contactId)
+    ->addValue('status_id:name', 'Completed')
+    ->addValue('details', 'Reason sent to ' . $email)
+    ->execute();
+
+  if (!$alreadyStamped) {
+    \Civi\Api4\Contact::update(FALSE)
+      ->addWhere('id', '=', $contactId)
+      ->addValue($dateField, date('Y-m-d H:i:s'))
+      ->execute();
+  }
+}
+
+/** Has this revocation notice already gone out? Sending twice is worse than late. */
+function openar_already_revoked(int $contactId): bool {
+  // Queried through ActivityContact, the same way the decline guard does it.
+  // Filtering Activity by target_contact_id directly is not a route this build
+  // has proven, and a guard that quietly fails sends the notice twice.
+  return (bool) \Civi\Api4\ActivityContact::get(FALSE)
+    ->addSelect('id')
+    ->addWhere('contact_id', '=', $contactId)
+    ->addWhere('record_type_id:name', '=', 'Activity Targets')
+    ->addWhere('activity_id.subject', '=', OPENAR_REVOKE_ACTIVITY)
+    ->execute()->count();
+}
+
+/** Tell whoever does reviews that a revocation is sitting unsent. */
+function openar_notify_missing_revocation_reason(int $contactId, string $displayName): void {
+  $t = \Civi\Api4\MessageTemplate::get(FALSE)
+    ->addSelect('id')->addWhere('msg_title', '=', OPENAR_REVOKE_INCOMPLETE_TEMPLATE)
+    ->addWhere('is_active', '=', TRUE)->execute()->first();
+
+  if (!$t) {
+    \Civi::log()->error('OpenAR onboarding: revocation {cid} has no reason and no notice template',
+      ['cid' => $contactId]);
+    return;
+  }
+
+  [$fromName, $fromEmail] = \CRM_Core_BAO_Domain::getNameAndEmail();
+
+  \CRM_Core_BAO_MessageTemplate::sendTemplate([
+    'messageTemplateID' => $t['id'],
+    'from' => sprintf('%s <%s>', $fromName, $fromEmail),
+    'toEmail' => OPENAR_REVIEW_INBOX,
+    'tplParams' => ['displayName' => $displayName, 'contactId' => $contactId],
+  ]);
+}
+
 /**
  * A Statement of Support was reviewed and not published. Tell the signer.
  *
@@ -682,10 +866,14 @@ function openar_decline_supporter(int $contactId): void {
 
 /** Has this organization already been told? Sending twice is worse than late. */
 function openar_supporter_already_declined(int $contactId): bool {
-  return (bool) \Civi\Api4\Activity::get(FALSE)
-    ->selectRowCount()
-    ->addWhere('subject', '=', OPENAR_SUPPORTER_DECLINE_ACTIVITY)
-    ->addWhere('target_contact_id', '=', $contactId)
+  // Queried through ActivityContact, the same way the decline guard does it.
+  // Filtering Activity by target_contact_id directly is not a route this build
+  // has proven, and a guard that quietly fails sends the notice twice.
+  return (bool) \Civi\Api4\ActivityContact::get(FALSE)
+    ->addSelect('id')
+    ->addWhere('contact_id', '=', $contactId)
+    ->addWhere('record_type_id:name', '=', 'Activity Targets')
+    ->addWhere('activity_id.subject', '=', OPENAR_SUPPORTER_DECLINE_ACTIVITY)
     ->execute()->count();
 }
 
@@ -1087,6 +1275,8 @@ function openar_onboarding_group_commit(string $op, string $objectName, $objectI
       OPENAR_DECLINED_GROUP => 'openar_decline_applicant',
       OPENAR_SUPPORTERS_PUBLISHED_GROUP => 'openar_publish_supporter',
       OPENAR_SUPPORTERS_DECLINED_GROUP => 'openar_decline_supporter',
+      OPENAR_MEMBERS_REVOKED_GROUP => 'openar_revoke_member',
+      OPENAR_SUPPORTERS_REVOKED_GROUP => 'openar_revoke_supporter',
     ];
 
     $groupId = NULL;
@@ -1378,29 +1568,55 @@ add_action('civicrm_postCommit', 'openar_onboarding_contact_commit', 10, 4);
  * the reason and then add to the group.
  */
 function openar_onboarding_contact_commit(string $op, string $objectName, $objectId, &$objectRef): void {
-  if ($op !== 'edit' || $objectName !== 'Individual' || empty($objectId)) {
+  if ($op !== 'edit' || !in_array($objectName, ['Individual', 'Organization'], TRUE) || empty($objectId)) {
     return;
   }
 
   try {
     $contactId = (int) $objectId;
+    $organization = ($objectName === 'Organization');
 
-    $reason = trim((string) (\Civi\Api4\Contact::get(FALSE)
-      ->addSelect('Membership.decline_reason')
-      ->addWhere('id', '=', $contactId)
-      ->execute()->first()['Membership.decline_reason'] ?? ''));
+    // Whichever of the four is waiting on a reason being written. Each pairs a
+    // group with the field whose text is sent, so writing the reason after the
+    // group add finishes the job either way round.
+    $pending = $organization
+      ? [
+        [OPENAR_SUPPORTERS_REVOKED_GROUP, 'MissionSupporter.revocation_reason', 'openar_revoke_supporter'],
+        [OPENAR_SUPPORTERS_DECLINED_GROUP, 'MissionSupporter.decline_reason', 'openar_decline_supporter'],
+      ]
+      : [
+        [OPENAR_MEMBERS_REVOKED_GROUP, 'Membership.revocation_reason', 'openar_revoke_member'],
+        [OPENAR_DECLINED_GROUP, 'Membership.decline_reason', NULL],
+      ];
 
-    if ($reason === '') {
+    foreach ($pending as [$group, $field, $handler]) {
+      if (!openar_in_group($contactId, $group)) {
+        continue;
+      }
+
+      $reason = trim((string) (\Civi\Api4\Contact::get(FALSE)
+        ->addSelect($field)
+        ->addWhere('id', '=', $contactId)
+        ->execute()->first()[$field] ?? ''));
+
+      if ($reason === '') {
+        continue;
+      }
+
+      if ($handler === NULL) {
+        if (openar_already_declined($contactId)) {
+          return;
+        }
+        openar_send_decline($contactId, $reason);
+        return;
+      }
+
+      // The revocation and supporter handlers are already guarded against
+      // sending twice, and re-running them is how the notice gets sent once
+      // the reason exists.
+      $handler($contactId);
       return;
     }
-    if (openar_already_declined($contactId)) {
-      return;
-    }
-    if (!openar_in_group($contactId, OPENAR_DECLINED_GROUP)) {
-      return;
-    }
-
-    openar_send_decline($contactId, $reason);
   }
   catch (\Throwable $e) {
     \Civi::log()->error('OpenAR onboarding: pending decline for {cid} failed: {msg}', [
