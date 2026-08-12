@@ -460,7 +460,16 @@ function openar_admin_dashboard_widget(): void {
   );
 }
 
-/** How many contacts sit in a group, or null when the group is missing. */
+/**
+ * How many contacts sit in a group, or null when the group is missing.
+ *
+ * Trashed contacts are excluded. Deleting a contact in CiviCRM moves it to the
+ * trash and leaves its group membership row untouched, so counting the group
+ * alone keeps counting people who have been deleted. That is not a harmless
+ * overcount: every one of these numbers links to a CiviCRM group screen, which
+ * hides trashed contacts by default, so the figure and the page it points at
+ * disagreed with each other.
+ */
 function openar_admin_group_count(string $name): ?int {
   $id = openar_admin_group_id($name);
   if (!$id) {
@@ -468,7 +477,11 @@ function openar_admin_group_count(string $name): ?int {
   }
   return (int) civicrm_api4('GroupContact', 'get', [
     'select' => ['row_count'],
-    'where' => [['group_id', '=', $id], ['status', '=', 'Added']],
+    'where' => [
+      ['group_id', '=', $id],
+      ['status', '=', 'Added'],
+      ['contact_id.is_deleted', '=', FALSE],
+    ],
     'checkPermissions' => FALSE,
   ])->count();
 }
@@ -657,18 +670,12 @@ function openar_admin_dashboard_render(): void {
 
   <?php if ($members !== NULL && $numbered > $members) : ?>
     <p style="margin:10px 0 0;padding:8px 10px;background:#fcf9e8;border-left:4px solid #dba617;font-size:12px">
-      <?php printf(
-        /* Both halves can be 1, and "only 1 are in the group" reads like a bug
-           in the thing that is reporting a bug. */
-        esc_html($numbered === 1 ? '%d contact holds a member ID' : '%d contacts hold a member ID'),
-        (int) $numbered
-      ); ?>
-      <?php printf(
-        esc_html($members === 1 ? ' but only %d is in the members group.' : ' but only %d are in the members group.'),
-        (int) $members
-      ); ?>
-      Usually that means two records for the same person, which is fixed by
-      merging them.
+      <?php /* Stated as two figures rather than a sentence, because every
+               phrasing of it reads badly at one of the numbers it can hold. */ ?>
+      <strong>Member IDs issued: <?php echo (int) $numbered; ?>. Members group: <?php echo (int) $members; ?>.</strong>
+      Those should match. It is usually two records for the same person, which
+      merging fixes, or a number issued to somebody who never made it into the
+      group. Deleted contacts are already excluded from both figures.
     </p>
   <?php endif; ?>
 
