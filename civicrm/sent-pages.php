@@ -56,7 +56,7 @@ $pages = [
 <!-- /wp:heading -->
 
 <!-- wp:paragraph -->
-<p>A person reviews the employer or affiliation you gave, which usually takes a few days. On approval you get an email with your member number and a link that connects your Discord account.</p>
+<p>A person reviews the employer or affiliation you gave, which usually takes a few days. On approval you get an email with your member number and a link that connects your Discord account. Approval also puts you on the members-only email list, which you can leave at any time without affecting your membership.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
