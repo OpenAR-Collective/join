@@ -29,41 +29,41 @@ const APPLY_URL = 'https://join.openarcollective.org/apply';
 
 $subject = 'Confirm your email address for OpenAR Collective membership';
 
+require_once __DIR__ . '/openar-signature.php';
+
 $html = <<<HTML
 <p>Hello {\$firstName},</p>
 
-<p>Thank you for applying for membership in The Open Accounts Receivable Collective Foundation. One step is left: confirm that this email address is yours.</p>
+<p>Thank you for wanting to join us. We are glad you are here, and there is one small thing left to do: confirm that this email address is yours.</p>
 
 <p><a href="{\$verifyUrl}" style="display:inline-block;padding:12px 22px;background:#e8a020;color:#161410;font-family:Arial,Helvetica,sans-serif;font-weight:600;text-decoration:none;border-radius:3px;">Confirm my email address</a></p>
 
-<p>Your application reaches the review queue only when you confirm, so nothing happens until you do. The link works once and is good for {\$expiryDays} days. If it lapses, you can apply again at <a href="APPLY_URL_HERE">join.openarcollective.org/apply</a> and a new link will be sent.</p>
+<p>Your application reaches us only when you confirm, so nothing happens until you do. The link works once and is good for {\$expiryDays} days. If it lapses, apply again at <a href="APPLY_URL_HERE">join.openarcollective.org/apply</a> and a new link will be on its way straight after.</p>
 
 <p>If the button does not work, copy this address into your browser:</p>
 
 <p style="font-family:monospace;font-size:13px;word-break:break-all;">{\$verifyUrl}</p>
 
 <p>If you did not apply, you can ignore this message and nothing further will happen.</p>
-
-<p>The Open Accounts Receivable Collective Foundation<br />
-<a href="https://openarcollective.org">openarcollective.org</a></p>
 HTML;
 
 $text = <<<TEXT
 Hello {\$firstName},
 
-Thank you for applying for membership in The Open Accounts Receivable Collective Foundation. One step is left: confirm that this email address is yours.
+Thank you for wanting to join us. We are glad you are here, and there is one small thing left to do: confirm that this email address is yours.
 
 Open this link to confirm:
 
 {\$verifyUrl}
 
-Your application reaches the review queue only when you confirm, so nothing happens until you do. The link works once and is good for {\$expiryDays} days. If it lapses, you can apply again at APPLY_URL_HERE and a new link will be sent.
+Your application reaches us only when you confirm, so nothing happens until you do. The link works once and is good for {\$expiryDays} days. If it lapses, apply again at APPLY_URL_HERE and a new link will be on its way straight after.
 
 If you did not apply, you can ignore this message and nothing further will happen.
-
-The Open Accounts Receivable Collective Foundation
-openarcollective.org
 TEXT;
+
+// Nobody is a member yet at this point, so "Welcome aboard" would be premature.
+$html .= openar_signature_html('Looking forward to having you');
+$text .= openar_signature_text('Looking forward to having you');
 
 $html = str_replace('APPLY_URL_HERE', APPLY_URL, $html);
 $text = str_replace('APPLY_URL_HERE', APPLY_URL, $text);
