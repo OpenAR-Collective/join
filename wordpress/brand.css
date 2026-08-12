@@ -90,6 +90,7 @@ body > .wp-site-blocks a:hover { color: #f5c050; }
    base page and the landing page share that container and neither wants this. */
 .oar-prose p,
 .oar-prose li,
+.oar-prose h1,
 .oar-prose h2,
 .oar-prose h3 {
   max-width: 38rem;
@@ -101,10 +102,25 @@ body > .wp-site-blocks a:hover { color: #f5c050; }
   line-height: 1.65;
 }
 
-.oar-prose h2 {
+.oar-prose h1 {
+  font-size: 2.1rem;
+  margin-bottom: 0.75rem;
+}
+
+.oar-prose h2,
+.oar-prose h3 {
   font-size: 1.35rem;
   margin-top: 2.25rem;
 }
+
+/* Lists inherit the theme's list spacing, which is built for the wider measure. */
+.oar-prose ol,
+.oar-prose ul {
+  max-width: 38rem;
+  padding-left: 1.4rem;
+}
+
+.oar-prose li + li { margin-top: 0.5rem; }
 
 /* The post title is a sibling of the content, so it cannot be reached from
    inside the wrapper. :has() scopes it to these pages without needing a body
@@ -113,6 +129,17 @@ body > .wp-site-blocks a:hover { color: #f5c050; }
 body:has(.oar-prose) .wp-block-post-title {
   font-size: 2.1rem;
   max-width: 38rem;
+}
+
+/* The confirmation page blanks CiviCRM's "Form Submission" title so the
+   content's own h1 is the page's only heading. An empty heading still occupies
+   its margins, which left a gap where the title had been. */
+.wp-block-post-title:empty { display: none; }
+
+/* The form pages keep their title, but the theme sets it at 47px above form
+   text that brand.css puts at 16px. Same size as everywhere else here. */
+body:has(#crm-container.crm-public) .wp-block-post-title {
+  font-size: 2.1rem;
 }
 
 .oar-paths .wp-block-column {

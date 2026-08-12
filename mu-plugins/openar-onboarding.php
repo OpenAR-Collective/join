@@ -1151,6 +1151,22 @@ function openar_onboarding_page_run(&$page): void {
     // branch the copy already handles.
   }
 
+  // CiviCRM titles this page "Form Submission", which is what the machine did
+  // rather than what happened to the reader, and it sat above our own heading
+  // saying the same thing better. Blanking it leaves the content's h1 as the
+  // page's only heading, which is also the right document structure.
+  //
+  // setTitle() cannot set one and not the other: CRM_Utils_System_WordPress
+  // falls back to the document title when the page title is empty, so blanking
+  // the heading blanks the tab too. The tab is given its text back below.
+  \CRM_Utils_System::setTitle('');
+
+  $tab = !$state['verified']
+    ? 'That link could not be used'
+    : ($state['kind'] === 'supporter' ? 'Signature confirmed' : 'Email address confirmed');
+
+  add_filter('pre_get_document_title', static fn(): string => $tab . ' | OpenAR Collective');
+
   openar_verify_state($state);
 }
 
@@ -1185,8 +1201,8 @@ function openar_verify_html(bool $verified, string $kind): string {
   $help = '<a href="mailto:membership@openarcollective.org">membership@openarcollective.org</a>';
 
   if (!$verified) {
-    return '<div class="oar-verify">'
-      . '<h2>That link could not be used.</h2>'
+    return '<div class="oar-verify oar-prose">'
+      . '<h1>That link could not be used.</h1>'
       . '<p>Confirmation links stop working once they have been used, and they expire seven days '
       . 'after the form was sent. Nothing is wrong with the details you gave.</p>'
       . '<h3>What to do</h3>'
@@ -1204,8 +1220,8 @@ function openar_verify_html(bool $verified, string $kind): string {
   }
 
   if ($kind === 'supporter') {
-    return '<div class="oar-verify">'
-      . '<h2>Thank you. Your signature is confirmed.</h2>'
+    return '<div class="oar-verify oar-prose">'
+      . '<h1>Thank you! Your signature is confirmed.</h1>'
       . '<p>The Statement of Support is now with the Foundation, recorded in your '
       . 'organization&rsquo;s name.</p>'
       . '<h3>What happens next</h3>'
@@ -1225,8 +1241,8 @@ function openar_verify_html(bool $verified, string $kind): string {
       . '</div>';
   }
 
-  return '<div class="oar-verify">'
-    . '<h2>Thank you. Your email address is confirmed.</h2>'
+  return '<div class="oar-verify oar-prose">'
+    . '<h1>Thank you! Your email address is confirmed.</h1>'
     . '<p>Your application is now with the Foundation.</p>'
     . '<h3>What happens next</h3>'
     . '<ol>'
