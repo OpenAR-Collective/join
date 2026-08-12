@@ -334,3 +334,18 @@ the change into that file**, or the next run reverts you.
 The same applies to the Statement of Support. There is no script for that form,
 which is exactly why it survived; if one is written, it must carry the whole
 layout too.
+
+## Agreement fields must be checkboxes, not Boolean radios
+
+A CiviCRM Boolean custom field renders as a Yes/No radio pair. Marking it
+required only forces a choice, and **No is a choice**. The Statement of Support
+shipped that way: an organization could sign it while answering No to agreeing
+to the Community Participation Terms and No to having authority to bind the
+organization, and the form accepted the submission and emailed a confirmation.
+Verified by doing it.
+
+The layouts therefore force `input_type: 'CheckBox'` on every agreement field.
+A required checkbox has to be ticked. The membership form was already right;
+the supporter form was not.
+
+If you add an agreement to either form, set `input_type: 'CheckBox'` on it.
