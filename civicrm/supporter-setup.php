@@ -201,7 +201,7 @@ Saying publicly that you support this work matters, and we are grateful for it. 
 
 To be plain about what the listing is not: it is not a review, approval, or endorsement by the Foundation, and it does not make your organization a member, partner, affiliate, or sponsor.
 
-To send a logo for the roster, or to correct anything in your listing, write to membership@openarcollective.org and we will sort it out.
+To correct anything in your listing, write to membership@openarcollective.org and we will sort it out.
 
 You can withdraw at any time by writing to the same address, with no reason needed, and your organization will be removed promptly. The Statement asks nothing further of you: no dues, no financial commitment, and no position on industry practices, regulation, or litigation.
 TEXT,
@@ -214,7 +214,7 @@ TEXT,
 
 <p>To be plain about what the listing is not: it is not a review, approval, or endorsement by the Foundation, and it does not make your organization a member, partner, affiliate, or sponsor.</p>
 
-<p>To send a logo for the roster, or to correct anything in your listing, write to <a href="mailto:membership@openarcollective.org">membership@openarcollective.org</a> and we will sort it out.</p>
+<p>To correct anything in your listing, write to <a href="mailto:membership@openarcollective.org">membership@openarcollective.org</a> and we will sort it out.</p>
 
 <p>You can withdraw at any time by writing to the same address, with no reason needed, and your organization will be removed promptly. The Statement asks nothing further of you: no dues, no financial commitment, and no position on industry practices, regulation, or litigation.</p>
 HTML,

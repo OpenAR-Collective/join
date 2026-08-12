@@ -181,7 +181,7 @@ const OPENAR_SUPPORTER_DECLINE_TEMPLATE = 'OpenAR - Statement of Support decline
 const OPENAR_SUPPORTER_DECLINE_ACTIVITY = 'Mission Supporter statement declined';
 
 /** The Statement version a signature is bound to. Bump when the Statement changes. */
-const OPENAR_STATEMENT_VERSION = '1.2';
+const OPENAR_STATEMENT_VERSION = '1.3';
 
 /**
  * The Community Participation Terms version an application is bound to.
@@ -1336,7 +1336,7 @@ function openar_verify_html(bool $verified, string $kind): string {
       . '</ol>'
       . '<p>There is nothing further for you to do, and nothing to pay. Signing carries no financial '
       . 'commitment of any kind, now or ever.</p>'
-      . '<p>To send a logo for the roster, to correct anything, or to withdraw, write to ' . $help
+      . '<p>To correct anything in your listing, or to withdraw, write to ' . $help
       . '. Withdrawal is honored promptly and needs no reason.</p>'
       . '</div>';
   }
