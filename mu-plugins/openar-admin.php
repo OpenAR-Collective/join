@@ -188,6 +188,38 @@ function openar_admin_decide(int $contactId, string $action, string $reason = ''
         . 'Discord link have gone out.';
   }
 
+  if ($action === 'revoke') {
+    $reason = trim($reason);
+    if ($reason === '') {
+      return 'A revocation needs a reason, because the policy requires the person '
+        . 'be given the basis of the decision. Nothing was changed.';
+    }
+
+    $current = $supporter ? OPENAR_SUPPORTERS_PUBLISHED_GROUP : OPENAR_MEMBERS_GROUP;
+    if (!openar_in_group($contactId, $current)) {
+      return "{$name} is not currently " . ($supporter ? 'published' : 'a member')
+        . ', so there is nothing to revoke. Nothing was changed.';
+    }
+
+    // Written before the group add, exactly as the decline does it, so the
+    // notice goes out complete on the first attempt rather than firing the
+    // "recorded without a reason" alert and waiting for a second edit.
+    civicrm_api4('Contact', 'update', [
+      'where' => [['id', '=', $contactId]],
+      'values' => [($supporter ? 'MissionSupporter' : 'Membership') . '.revocation_reason' => $reason],
+      'checkPermissions' => FALSE,
+    ]);
+    openar_add_to_group($contactId,
+      $supporter ? OPENAR_SUPPORTERS_REVOKED_GROUP : OPENAR_MEMBERS_REVOKED_GROUP);
+
+    return $supporter
+      ? "{$name} has been revoked and removed from the published roster. The signer "
+        . 'has been sent the reason, and the next hourly sync takes the organization '
+        . 'off openarcollective.org.'
+      : "{$name}'s membership has been revoked. Their access has ended and they have "
+        . 'been sent the reason.';
+  }
+
   if ($action === 'decline') {
     $reason = trim($reason);
     if ($reason === '') {
@@ -394,9 +426,47 @@ function openar_admin_page(): void {
     }
   }
 
+  // Revoking is shown back before it happens. Approving and declining act on
+  // somebody who applied and is waiting to hear; revoking acts on somebody in
+  // good standing who is not expecting anything, ends their access, and sends
+  // an email that cannot be recalled. One confirmation is worth the click.
+  $confirm = NULL;
+  if (!empty($_POST['openar_revoke_review']) && !empty($_POST['openar_contact'])) {
+    $cid = (int) $_POST['openar_contact'];
+    $reason = trim(wp_unslash((string) ($_POST['openar_reason'] ?? '')));
+
+    if (!isset($_POST['_wpnonce']) || !wp_verify_nonce(sanitize_key($_POST['_wpnonce']), 'openar_revoke_review')) {
+      $error = 'That request could not be verified. Please try again.';
+    }
+    elseif ($reason === '') {
+      $error = 'A revocation needs a reason, because the policy requires the person be '
+        . 'given the basis of the decision. Nothing was changed.';
+    }
+    else {
+      civi_wp()->initialize();
+      $who = civicrm_api4('Contact', 'get', [
+        'select' => ['display_name', 'contact_type'],
+        'where' => [['id', '=', $cid]],
+        'checkPermissions' => FALSE,
+      ])->first();
+      if (!$who) {
+        $error = "Contact #{$cid} no longer exists.";
+      }
+      else {
+        $confirm = [
+          'id' => $cid,
+          'name' => $who['display_name'],
+          'supporter' => ($who['contact_type'] === 'Organization'),
+          'reason' => $reason,
+        ];
+      }
+    }
+  }
+
   $pending = openar_admin_pending();
   $queue = openar_admin_review_queue();
   $supporters = openar_admin_supporter_queue();
+  $revocable = openar_admin_revocable();
   ?>
   <div class="wrap">
     <h1>OpenAR onboarding</h1>
@@ -731,6 +801,86 @@ function openar_admin_page(): void {
       </table>
     <?php endif; ?>
 
+    <h2 style="margin-top:2em">End someone's participation</h2>
+
+    <?php if ($confirm) : ?>
+      <div class="card" style="max-width:60em;padding:16px 20px;border-left:4px solid #d63638">
+        <h3 style="margin:0 0 8px">Revoke <?php echo esc_html($confirm['name']); ?>?</h3>
+        <p style="margin:0 0 10px">
+          <?php if ($confirm['supporter']) : ?>
+            This removes the organization from the public roster, so the next hourly
+            sync takes it off openarcollective.org, and emails the signer the reason
+            below. Under Section 7.7 the organization may not sign again for a year.
+          <?php else : ?>
+            This ends their access to the members-only spaces, retires their member
+            number, and emails them the reason below. Under Section 7.7 they may not
+            apply again for a year.
+          <?php endif; ?>
+        </p>
+        <p style="margin:0 0 4px"><strong>They will be sent this, word for word:</strong></p>
+        <p style="padding:12px 16px;border-left:3px solid #b8b0a4;background:#f6f4f0;white-space:pre-wrap;margin:0 0 14px"><?php echo esc_html($confirm['reason']); ?></p>
+
+        <div style="display:flex;gap:12px;align-items:center">
+          <form method="post" style="margin:0">
+            <?php wp_nonce_field("openar_decide_{$confirm['id']}"); ?>
+            <input type="hidden" name="openar_contact" value="<?php echo (int) $confirm['id']; ?>" />
+            <input type="hidden" name="openar_decide" value="revoke" />
+            <input type="hidden" name="openar_reason" value="<?php echo esc_attr($confirm['reason']); ?>" />
+            <button type="submit" class="button button-primary" style="background:#d63638;border-color:#d63638">
+              Yes, revoke and send this
+            </button>
+          </form>
+          <a href="<?php echo esc_url(admin_url('tools.php?page=' . OPENAR_ADMIN_SLUG)); ?>">Cancel</a>
+        </div>
+      </div>
+
+    <?php elseif (!$revocable) : ?>
+      <p class="description" style="max-width:60em">
+        Nobody is currently a member or on the published roster, so there is
+        nothing to revoke.
+      </p>
+
+    <?php else : ?>
+      <p class="description" style="max-width:60em">
+        Revoking takes participation away from someone in good standing. It is not
+        the same as declining an application, which refuses someone who was never
+        admitted: a declined applicant may apply again at once, while Section 7.7
+        makes a revoked one wait a year. You will be shown what you have written
+        before anything is sent.
+      </p>
+
+      <form method="post" class="card" style="max-width:60em;padding:16px 20px;margin:14px 0">
+        <?php wp_nonce_field('openar_revoke_review'); ?>
+        <input type="hidden" name="openar_revoke_review" value="1" />
+
+        <p style="margin:0 0 10px">
+          <label for="openar_contact"><strong>Who</strong></label><br />
+          <select name="openar_contact" id="openar_contact" style="min-width:28em" required>
+            <option value="">Choose a member or a listed organization</option>
+            <?php foreach (['member' => 'Members', 'supporter' => 'Mission Supporters'] as $kind => $heading) : ?>
+              <?php $group = array_filter($revocable, fn($r) => $r['kind'] === $kind); ?>
+              <?php if ($group) : ?>
+                <optgroup label="<?php echo esc_attr($heading); ?>">
+                  <?php foreach ($group as $r) : ?>
+                    <option value="<?php echo (int) $r['id']; ?>"><?php echo esc_html($r['label']); ?></option>
+                  <?php endforeach; ?>
+                </optgroup>
+              <?php endif; ?>
+            <?php endforeach; ?>
+          </select>
+        </p>
+
+        <p style="margin:0 0 10px">
+          <label for="openar_reason"><strong>Reason</strong></label><br />
+          <span class="description">Sent to them word for word. The policy requires that
+            they be told the basis, so this cannot be left empty.</span><br />
+          <textarea name="openar_reason" id="openar_reason" rows="3" style="width:100%" required></textarea>
+        </p>
+
+        <button type="submit" class="button">Review this revocation</button>
+      </form>
+    <?php endif; ?>
+
     <h2 style="margin-top:2em">Everything else</h2>
     <table class="widefat striped" style="max-width:60em">
       <tbody>
@@ -927,6 +1077,66 @@ function openar_admin_group_count(string $name): ?int {
     ],
     'checkPermissions' => FALSE,
   ])->count();
+}
+
+/**
+ * Everyone whose participation could be revoked: current members, and
+ * organizations currently on the public roster.
+ *
+ * Unlike a review queue there is no natural list here, because revocation acts
+ * on somebody who is already in good standing. So the screen has to offer a
+ * choice, and the choice has to be exactly the people it is possible to revoke,
+ * rather than every contact in the database.
+ */
+function openar_admin_revocable(): array {
+  if (!function_exists('civi_wp')) {
+    return [];
+  }
+  civi_wp()->initialize();
+
+  $out = [];
+
+  foreach ([
+    [OPENAR_MEMBERS_GROUP, 'member', 'Membership.member_number'],
+    [OPENAR_SUPPORTERS_PUBLISHED_GROUP, 'supporter', NULL],
+  ] as [$group, $kind, $numberField]) {
+    $gid = openar_admin_group_id($group);
+    if (!$gid) {
+      continue;
+    }
+    $ids = [];
+    foreach (civicrm_api4('GroupContact', 'get', [
+      'select' => ['contact_id'],
+      'where' => [['group_id', '=', $gid], ['status', '=', 'Added'],
+                  ['contact_id.is_deleted', '=', FALSE]],
+      'checkPermissions' => FALSE,
+    ]) as $r) {
+      $ids[] = (int) $r['contact_id'];
+    }
+    if (!$ids) {
+      continue;
+    }
+
+    $select = ['id', 'display_name', 'sort_name'];
+    if ($numberField) {
+      $select[] = $numberField;
+    }
+
+    foreach (civicrm_api4('Contact', 'get', [
+      'select' => $select,
+      'where' => [['id', 'IN', $ids]],
+      'orderBy' => ['sort_name' => 'ASC'],
+      'checkPermissions' => FALSE,
+    ]) as $c) {
+      $label = $c['display_name'];
+      if ($numberField && !empty($c[$numberField])) {
+        $label .= ' (member ' . $c[$numberField] . ')';
+      }
+      $out[] = ['id' => (int) $c['id'], 'label' => $label, 'kind' => $kind];
+    }
+  }
+
+  return $out;
 }
 
 /**
