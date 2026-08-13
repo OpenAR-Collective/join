@@ -40,9 +40,14 @@ $layout = <<<'HTML'
   <fieldset af-fieldset="Individual1" class="af-container oar-form">
     <af-title>Apply for membership</af-title>
 
+    <h3 class="oar-h">About membership</h3>
+<p>Membership in The OpenAR Collective is recognition that you are part of the Foundation&rsquo;s community. It is free, it requires no dues or contribution of any kind, and it is open to anyone professionally engaged with the accounts receivable and debt collection industry, including collectors, operations and compliance staff, managers and executives, in-house and outside counsel, vendor and service provider staff, academics and researchers, and staff of regulatory agencies and consumer advocacy organizations.</p>
+<p>Membership gives you a member number and access to the Foundation&rsquo;s verified practitioner community, including the members-only areas of the Foundation&rsquo;s Discord server. Membership gives you no vote and no governance role in the Foundation.</p>
+<p><strong>Your employer does not need to be involved.</strong> Membership is yours as an individual, and nothing about it requires your company to sign the Foundation&rsquo;s Mission Supporter Statement or to have any relationship with the Foundation at all.</p>
     <h3 class="oar-h">Our mission</h3>
     <blockquote class="oar-mission"><p>The Open Accounts Receivable Collective Foundation works to make accounts receivable and debt collection more transparent, more compliant, and more accountable to the consumers it touches. It builds software under an open-source license so anyone can run, inspect, modify, and redistribute it at no cost. The Foundation also publishes open educational and compliance resources, develops shared standards, delivers training, and maintains a neutral, community-governed commons where practitioners learn from one another.</p></blockquote>
     <af-field name="Membership.mission_affirmation" defn="{required: true, input_type: 'CheckBox', label: 'I have read the mission statement above, and I support the Foundation’s charitable mission.'}" />
+    <p class="description">This affirmation is about the Foundation&rsquo;s charitable mission and nothing else. It is not an affirmation of any position on industry practices, regulation, litigation, pending legislation, or the conduct of any person or company, and you will never be asked to take such a position as a condition of membership.</p>
 
     <h3 class="oar-h">Your information</h3>
     <div class="af-container af-layout-cols2">
@@ -60,6 +65,9 @@ $layout = <<<'HTML'
       <af-field name="Membership.linkedin_url" defn="{required: false, label: 'LinkedIn profile', help_post: 'Optional. It helps us confirm your professional engagement more quickly.', input_attrs: {placeholder: 'linkedin.com/in/jane-doe-8a4b21'}}" />
     </div>
 
+    <h3 class="oar-h">What happens after you apply</h3>
+<p>The Foundation will confirm your email address and review your stated employer or affiliation before admitting you. This step verifies that you are who you say you are. It is not a screening for favored participants, and it does not consider your employer&rsquo;s size, business model, or reputation.</p>
+<p>If the Foundation denies your application, it will tell you why in writing, and you may ask the Board of Directors to reconsider by writing to the Foundation within thirty days. You may also simply apply again at any time.</p>
     <h3 class="oar-h">The terms</h3>
     <p class="oar-terms-label">Scroll to read the full terms before agreeing.</p><div class="oar-terms" tabindex="0" role="region" aria-label="Scroll to read the full terms before agreeing."><h2 id="calling-yourself-a-member">Calling Yourself a Member</h2>
 <p>Membership entitles you to say publicly that you are a member of the OpenAR Collective. The Foundation grants you a limited, non-exclusive, non-transferable, and revocable license to do so on the terms below.</p>

@@ -38,9 +38,13 @@ $layout = <<<'SUPPORTER_LAYOUT'
   <fieldset af-fieldset="Organization1" class="af-container oar-form">
     <af-title>Sign the Statement of Support</af-title>
     
+    <h3 class="oar-h">About the Foundation</h3>
+<p>The Open Accounts Receivable Collective Foundation, operating as The OpenAR Collective, is a Delaware nonprofit corporation. It exists to give the accounts receivable and debt collection industry shared infrastructure that belongs to the industry itself rather than to any one company. Its work is open-source software, open educational and compliance resources, and a neutral community where practitioners collaborate in public. The Foundation is governed by a board of directors, and its governing documents are written to prevent any single company from controlling it.</p>
+<p><strong>Nobody at your organization has to join anything.</strong> Signing does not require your employees to become members of the Foundation, and it does not make them members. Individual membership is free and open to them if they want it, and entirely separate from this Statement.</p>
     <h3 class="oar-h">Our mission</h3>
 <blockquote class="oar-mission"><p>The Open Accounts Receivable Collective Foundation works to make accounts receivable and debt collection more transparent, more compliant, and more accountable to the consumers it touches. It builds software under an open-source license so anyone can run, inspect, modify, and redistribute it at no cost. The Foundation also publishes open educational and compliance resources, develops shared standards, delivers training, and maintains a neutral, community-governed commons where practitioners learn from one another.</p></blockquote>
     <af-field name="MissionSupporter.mission_affirmation_org" defn="{required: true, input_type: 'CheckBox', label: 'We have read the mission statement and support the Foundation&rsquo;s charitable mission.'}" />
+    <p class="description">This affirmation is about the Foundation&rsquo;s charitable mission and nothing else. It is not an affirmation of any position on industry practices, regulation, litigation, pending legislation, or the conduct of any person or company, and your organization will never be asked to take such a position as a condition of participation.</p>
     <h3 class="oar-h">Your organization</h3>
     <div class="af-container af-layout-cols2">
       <af-field name="organization_name" defn="{required: true, label: 'Organization legal name'}" />
@@ -58,6 +62,8 @@ $layout = <<<'SUPPORTER_LAYOUT'
       <af-field name="MissionSupporter.signer_title" defn="{required: true, label: 'Your title'}" />
     </div>
     <af-field name="MissionSupporter.signer_email" defn="{required: true, label: 'Your business email address'}" />
+    <h3 class="oar-h">What happens after you sign</h3>
+<p>If the Foundation declines to add your organization to the roster, it will tell you why in writing, and your organization may ask the Board of Directors to reconsider by writing to the Foundation within thirty days. Your organization may also simply submit a new Statement at any time.</p>
     <h3 class="oar-h">The Statement and terms</h3>
     <p class="oar-terms-label">Scroll to read the full Statement and terms before agreeing.</p><div class="oar-terms" tabindex="0" role="region" aria-label="Scroll to read the full Statement and terms before agreeing."><h2 id="what-this-statement-is">What This Statement Is</h2>
 <p>By signing below, your organization states publicly that it supports that mission. That is all this Statement does.</p>
