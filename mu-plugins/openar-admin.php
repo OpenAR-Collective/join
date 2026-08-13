@@ -854,9 +854,17 @@ function openar_admin_page(): void {
         materials, published positions, governance, or this policy, without any risk
         to that member's standing." A change in someone's views is not a ground
         either, and an organization's products, pricing, business model, customer
-        base, or opinions about industry practices are never grounds. Somebody
-        calling the Foundation, or you, incompetent in public has done nothing that
-        belongs on this screen.</p>
+        base, or opinions about industry practices are never grounds.</p>
+
+      <p style="margin:0 0 10px;padding:10px 14px;background:#fff;border-left:3px solid #5c564c">
+        <strong>Where the line falls is the policy's own.</strong> The community
+        standards "govern how a member treats other participants, not what a member
+        thinks of the Foundation." So disagreement, however blunt or public, is not
+        a ground. How somebody treats people is a separate question, and harassment,
+        personal attacks and intimidation are Article V(a), which is a real ground
+        under Section 7.2(i). Judging which of the two you are looking at is the
+        job. If it is close, it is a Board conversation rather than a decision to
+        make on this screen.</p>
 
       <p style="margin:0">If what you have in front of you is not on the two lists
         above, the answer is not revocation. Moderation, a correction request under
