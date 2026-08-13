@@ -929,6 +929,55 @@ function openar_admin_group_count(string $name): ?int {
   ])->count();
 }
 
+/**
+ * Revocations that have taken effect but told nobody.
+ *
+ * Adding somebody to a revoked group ends their access immediately, and the
+ * notice is held until a reason is written, because the policy requires that
+ * they be given the basis. The reviewer gets an email saying so, but an email
+ * is easy to miss and the person is meanwhile revoked without knowing it. This
+ * is that state, on a screen.
+ */
+function openar_admin_revocations_awaiting_reason(): array {
+  if (!function_exists('civi_wp')) {
+    return [];
+  }
+  civi_wp()->initialize();
+
+  $waiting = [];
+
+  foreach ([
+    ['members_revoked', 'Membership.revocation_reason'],
+    ['supporters_revoked', 'MissionSupporter.revocation_reason'],
+  ] as [$group, $field]) {
+    $gid = openar_admin_group_id($group);
+    if (!$gid) {
+      continue;
+    }
+    foreach (civicrm_api4('GroupContact', 'get', [
+      'select' => ['contact_id'],
+      'where' => [
+        ['group_id', '=', $gid],
+        ['status', '=', 'Added'],
+        ['contact_id.is_deleted', '=', FALSE],
+      ],
+      'checkPermissions' => FALSE,
+    ]) as $r) {
+      $c = civicrm_api4('Contact', 'get', [
+        'select' => ['id', 'display_name', $field],
+        'where' => [['id', '=', $r['contact_id']]],
+        'checkPermissions' => FALSE,
+      ])->first();
+
+      if ($c && trim((string) ($c[$field] ?? '')) === '') {
+        $waiting[] = ['id' => (int) $c['id'], 'display_name' => $c['display_name']];
+      }
+    }
+  }
+
+  return $waiting;
+}
+
 /** How many contacts have been issued a member number, whatever group they are in. */
 function openar_admin_numbered_members(): int {
   return (int) civicrm_api4('Contact', 'get', [
@@ -1119,6 +1168,23 @@ function openar_admin_dashboard_render(): void {
       Those should match. It is usually two records for the same person, which
       merging fixes, or a number issued to somebody who never made it into the
       group. Deleted contacts are already excluded from both figures.
+    </p>
+  <?php endif; ?>
+
+  <?php
+  // Anybody sitting in a revoked group with no reason written. Their access has
+  // already ended, but nothing has been sent to them, and the only other sign of
+  // it is an email that is easy to lose. It belongs where the counts are.
+  $stuck = openar_admin_revocations_awaiting_reason();
+  ?>
+  <?php if ($stuck) : ?>
+    <p style="margin:10px 0 0;padding:8px 10px;background:#fcf0f1;border-left:4px solid #d63638;font-size:12px">
+      <strong>A revocation is unfinished.</strong>
+      Access has ended for
+      <?php echo esc_html(implode(', ', array_column($stuck, 'display_name'))); ?>,
+      but nothing has been sent, because the reason has not been written.
+      Open the record, fill in <strong>Reason for revocation</strong>, and save.
+      The notice goes out on save.
     </p>
   <?php endif; ?>
 
