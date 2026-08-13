@@ -467,6 +467,20 @@ function openar_admin_page(): void {
     }
   }
 
+  if (!empty($_POST['openar_sync_roster'])) {
+    if (!isset($_POST['_wpnonce']) || !wp_verify_nonce(sanitize_key($_POST['_wpnonce']), 'openar_sync_roster')) {
+      $error = 'That request could not be verified. Please try again.';
+    }
+    else {
+      $notice = openar_admin_request_sync()
+        ?: 'Could not write the sync request file, so nothing was asked for.';
+      if (str_starts_with($notice, 'Could not')) {
+        $error = $notice;
+        $notice = '';
+      }
+    }
+  }
+
   $pending = openar_admin_pending();
   $queue = openar_admin_review_queue();
   $supporters = openar_admin_supporter_queue();
@@ -610,14 +624,14 @@ function openar_admin_page(): void {
           </table>
 
           <div style="display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap">
-            <form method="post" style="margin:0">
+            <form method="post" action="<?php echo esc_url(admin_url('tools.php?page=' . OPENAR_ADMIN_SLUG)); ?>#applicant-<?php echo $cid; ?>" style="margin:0">
               <?php wp_nonce_field("openar_decide_{$cid}"); ?>
               <input type="hidden" name="openar_contact" value="<?php echo $cid; ?>" />
               <input type="hidden" name="openar_decide" value="approve" />
               <button type="submit" class="button button-primary">Approve and welcome them</button>
             </form>
 
-            <form method="post" style="margin:0;flex:1;min-width:22em">
+            <form method="post" action="<?php echo esc_url(admin_url('tools.php?page=' . OPENAR_ADMIN_SLUG)); ?>#applicant-<?php echo $cid; ?>" style="margin:0;flex:1;min-width:22em">
               <?php wp_nonce_field("openar_decide_{$cid}"); ?>
               <input type="hidden" name="openar_contact" value="<?php echo $cid; ?>" />
               <input type="hidden" name="openar_decide" value="decline" />
@@ -732,14 +746,14 @@ function openar_admin_page(): void {
           </table>
 
           <div style="display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap">
-            <form method="post" style="margin:0">
+            <form method="post" action="<?php echo esc_url(admin_url('tools.php?page=' . OPENAR_ADMIN_SLUG)); ?>#applicant-<?php echo $cid; ?>" style="margin:0">
               <?php wp_nonce_field("openar_decide_{$cid}"); ?>
               <input type="hidden" name="openar_contact" value="<?php echo $cid; ?>" />
               <input type="hidden" name="openar_decide" value="approve" />
               <button type="submit" class="button button-primary">Approve and publish</button>
             </form>
 
-            <form method="post" style="margin:0;flex:1;min-width:22em">
+            <form method="post" action="<?php echo esc_url(admin_url('tools.php?page=' . OPENAR_ADMIN_SLUG)); ?>#applicant-<?php echo $cid; ?>" style="margin:0;flex:1;min-width:22em">
               <?php wp_nonce_field("openar_decide_{$cid}"); ?>
               <input type="hidden" name="openar_contact" value="<?php echo $cid; ?>" />
               <input type="hidden" name="openar_decide" value="decline" />
@@ -805,6 +819,37 @@ function openar_admin_page(): void {
       </table>
     <?php endif; ?>
 
+    <?php $sync = openar_admin_sync_status(); ?>
+    <h2 style="margin-top:2em">The public roster</h2>
+    <table class="widefat striped" style="max-width:60em">
+      <tbody>
+        <tr>
+          <td style="width:12em"><strong>Last sync</strong></td>
+          <td style="width:24em">
+            <?php echo esc_html($sync['when'] ?: 'never, as far as this screen can see'); ?>
+          </td>
+          <td style="color:<?php echo $sync['failed'] ? '#a13b1e' : '#646970'; ?>">
+            <?php echo esc_html($sync['summary']); ?>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p style="margin:12px 0 0;display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+      <form method="post" style="margin:0">
+        <?php wp_nonce_field('openar_sync_roster'); ?>
+        <input type="hidden" name="openar_sync_roster" value="1" />
+        <button type="submit" class="button">Sync the roster now</button>
+      </form>
+      <span class="description" style="max-width:40em">
+        It runs on its own every hour at seventeen minutes past. This asks for one
+        straight away, which takes about a minute to start.
+        <?php if (!empty($sync['waiting'])) : ?>
+          <br /><strong style="color:#a13b1e">A request is waiting and has not run yet.</strong>
+        <?php endif; ?>
+      </span>
+    </p>
+
     <h2 style="margin-top:2em">Everything else</h2>
     <table class="widefat striped" style="max-width:60em">
       <tbody>
@@ -824,7 +869,7 @@ function openar_admin_page(): void {
       </tbody>
     </table>
 
-    <h2 style="margin-top:2.5em;padding-top:1.25em;border-top:2px solid #d63638;color:#a13b1e">
+    <h2 id="openar-danger" style="margin-top:2.5em;padding-top:1.25em;border-top:2px solid #d63638;color:#a13b1e">
       Danger zone: ending someone's participation
     </h2>
 
@@ -908,7 +953,7 @@ function openar_admin_page(): void {
         <?php endif; ?>
 
         <div style="display:flex;gap:12px;align-items:center">
-          <form method="post" style="margin:0">
+          <form method="post" action="<?php echo esc_url(admin_url('tools.php?page=' . OPENAR_ADMIN_SLUG)); ?>#openar-danger" style="margin:0">
             <?php wp_nonce_field("openar_decide_{$confirm['id']}"); ?>
             <input type="hidden" name="openar_contact" value="<?php echo (int) $confirm['id']; ?>" />
             <input type="hidden" name="openar_decide" value="revoke" />
@@ -936,7 +981,7 @@ function openar_admin_page(): void {
         before anything is sent.
       </p>
 
-      <form method="post" class="card" style="max-width:60em;padding:16px 20px;margin:14px 0">
+      <form method="post" action="<?php echo esc_url(admin_url('tools.php?page=' . OPENAR_ADMIN_SLUG)); ?>#openar-danger" class="card" style="max-width:60em;padding:16px 20px;margin:14px 0">
         <?php wp_nonce_field('openar_revoke_review'); ?>
         <input type="hidden" name="openar_revoke_review" value="1" />
 
@@ -1145,6 +1190,74 @@ function openar_admin_group_count(string $name): ?int {
     ],
     'checkPermissions' => FALSE,
   ])->count();
+}
+
+/* ------------------------------------------------ the roster sync, on demand -- */
+
+// Written by the web user, read by rob's cron. Not a lock or a queue: the file
+// carries nothing but its own modification time, and the responder acts when
+// that time is newer than the last one it handled.
+const OPENAR_SYNC_REQUEST = '/tmp/openar-roster-sync.request';
+const OPENAR_SYNC_LOG = '/home/rob/openar-roster/last-run.log';
+
+/**
+ * Ask for a roster sync.
+ *
+ * The screen cannot run it. Pushing to the website repository needs the GitHub
+ * App private key, which is mode 600 and owned by rob, and the web server is
+ * www-data. Widening that key to the web user to save a wait would be a bad
+ * trade, so the button leaves a note and a one minute cron picks it up.
+ */
+function openar_admin_request_sync(): string {
+  $ok = @file_put_contents(OPENAR_SYNC_REQUEST, gmdate('c') . "\n");
+  if ($ok === FALSE) {
+    return '';
+  }
+  @chmod(OPENAR_SYNC_REQUEST, 0644);
+  return 'Asked for a roster sync. It starts within a minute and usually takes a few '
+    . 'seconds. Reload this page to see the result.';
+}
+
+/** The last sync, as the sync itself recorded it. */
+function openar_admin_sync_status(): array {
+  $log = @file_get_contents(OPENAR_SYNC_LOG);
+  if ($log === FALSE) {
+    return ['when' => NULL, 'summary' => 'No sync log is readable yet.', 'failed' => FALSE];
+  }
+
+  $when = NULL;
+  if (preg_match('/roster sync starting: (.+)$/m', $log, $m)) {
+    $when = trim($m[1]);
+  }
+
+  $failed = str_contains($log, 'FAILED:');
+  $summary = 'finished without saying what it did';
+
+  if ($failed && preg_match('/FAILED: (.+)$/m', $log, $m)) {
+    $summary = 'failed: ' . trim($m[1]);
+  }
+  elseif (str_contains($log, 'roster unchanged')) {
+    $summary = 'no change to publish';
+  }
+  elseif (str_contains($log, 'pushed.')) {
+    preg_match_all('/^\s{2}(add|update|remove):\s+(.+)$/m', $log, $m, PREG_SET_ORDER);
+    $bits = [];
+    foreach ($m as $line) {
+      if (trim($line[2]) !== 'none') {
+        $bits[] = $line[1] . ' ' . trim($line[2]);
+      }
+    }
+    $summary = 'published' . ($bits ? ': ' . implode('; ', $bits) : '');
+  }
+  elseif (str_contains($log, 'still the holding page')) {
+    $summary = 'stopped, because the branch it publishes to has no roster yet';
+  }
+
+  // A pending request the responder has not reached yet.
+  $requested = @filemtime(OPENAR_SYNC_REQUEST);
+  $waiting = ($requested && $when && strtotime($when . ' UTC') < $requested);
+
+  return ['when' => $when, 'summary' => $summary, 'failed' => $failed, 'waiting' => $waiting];
 }
 
 /**

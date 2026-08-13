@@ -748,6 +748,40 @@ function openar_send_revocation(int $contactId, string $template, string $email,
   }
 }
 
+/**
+ * Mark earlier decisions as superseded when somebody is admitted or published.
+ *
+ * The "already told" guards exist so a notice is never sent twice for one
+ * decision. They match on the activity subject, which means they also match a
+ * decision that has since been undone: revoke somebody, reinstate them, revoke
+ * them again, and the second revocation ends their access while the guard
+ * silently swallows the notice. They would be out with no idea why.
+ *
+ * Readmission ends the earlier decision, so its marker stops counting. The
+ * activity is reworded rather than deleted, because the history of a decision
+ * about a person is worth keeping even once it has been reversed.
+ */
+function openar_supersede_prior_decisions(int $contactId, array $subjects): void {
+  foreach ($subjects as $subject) {
+    $ids = [];
+    foreach (\Civi\Api4\ActivityContact::get(FALSE)
+      ->addSelect('activity_id')
+      ->addWhere('contact_id', '=', $contactId)
+      ->addWhere('record_type_id:name', '=', 'Activity Targets')
+      ->addWhere('activity_id.subject', '=', $subject)
+      ->execute() as $a) {
+      $ids[] = (int) $a['activity_id'];
+    }
+    if (!$ids) {
+      continue;
+    }
+    \Civi\Api4\Activity::update(FALSE)
+      ->addWhere('id', 'IN', $ids)
+      ->addValue('subject', $subject . ' (superseded by readmission)')
+      ->execute();
+  }
+}
+
 /** Has this revocation notice already gone out? Sending twice is worse than late. */
 function openar_already_revoked(int $contactId): bool {
   // Queried through ActivityContact, the same way the decline guard does it.
@@ -996,6 +1030,16 @@ function openar_publish_supporter(int $contactId): void {
   }
 
   openar_remove_from_group($contactId, OPENAR_SUPPORTERS_PENDING_GROUP);
+
+  openar_supersede_prior_decisions($contactId, [
+    OPENAR_REVOKE_ACTIVITY,
+    OPENAR_SUPPORTER_DECLINE_ACTIVITY,
+  ]);
+  civicrm_api4('Contact', 'update', [
+    'where' => [['id', '=', $contactId]],
+    'values' => ['MissionSupporter.revoked_date' => NULL],
+    'checkPermissions' => FALSE,
+  ]);
 
   if (openar_supporter_already_told($contactId)) {
     return;
@@ -1325,12 +1369,27 @@ function openar_onboarding_group_commit(string $op, string $objectName, $objectI
  */
 function openar_admit_member(int $contactId): void {
   $current = \Civi\Api4\Contact::get(FALSE)
-    ->addSelect('id', 'Membership.member_number')
+    ->addSelect('id', 'Membership.member_number', 'Membership.revoked_date')
     ->addWhere('id', '=', $contactId)
     ->execute()->first();
 
   if (!$current) {
     return;
+  }
+
+  // Before the early return below, not after it. Somebody being reinstated
+  // already has a member number, so everything past that point is skipped, and
+  // this is precisely the case where the earlier revocation has to stop
+  // counting. Clearing it here is what lets a later revocation send its notice.
+  openar_supersede_prior_decisions($contactId, [
+    OPENAR_REVOKE_ACTIVITY,
+    OPENAR_DECLINE_ACTIVITY,
+  ]);
+  if (!empty($current['Membership.revoked_date'])) {
+    \Civi\Api4\Contact::update(FALSE)
+      ->addWhere('id', '=', $contactId)
+      ->addValue('Membership.revoked_date', NULL)
+      ->execute();
   }
 
   if (!empty($current['Membership.member_number'])) {
@@ -1876,13 +1935,31 @@ function openar_add_to_group(int $contactId, string $groupName): void {
     return;
   }
 
-  $already = \Civi\Api4\GroupContact::get(FALSE)
+  // Any existing row, whatever its status, not just an Added one.
+  //
+  // Removing somebody from a group does not delete the row, it sets the status
+  // to Removed. So a contact who has ever been in this group already has a row,
+  // and civicrm_group_contact has a unique key on (contact_id, group_id).
+  // Checking only for Added meant the insert below ran against a Removed row
+  // and died on the duplicate key, taking the whole page with it. That hit
+  // every path, not just this one: approving somebody who had been removed from
+  // Members, declining a second time, revoking after an earlier revocation was
+  // undone. The fix is to revive the row rather than insert beside it.
+  $existing = \Civi\Api4\GroupContact::get(FALSE)
+    ->addSelect('id', 'status')
     ->addWhere('contact_id', '=', $contactId)
     ->addWhere('group_id', '=', $groupId)
-    ->addWhere('status', '=', 'Added')
-    ->execute()->count();
+    ->execute()->first();
 
-  if ($already) {
+  if ($existing && $existing['status'] === 'Added') {
+    return;
+  }
+
+  if ($existing) {
+    \Civi\Api4\GroupContact::update(FALSE)
+      ->addWhere('id', '=', $existing['id'])
+      ->addValue('status', 'Added')
+      ->execute();
     return;
   }
 

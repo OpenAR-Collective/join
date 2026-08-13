@@ -302,7 +302,16 @@ body:has(#crm-container.crm-public) .wp-block-post-title {
   border-top: 1px solid #ddd4c2;
 }
 #crm-container.crm-public .oar-agreements .af-field { margin-bottom: 0.85rem; }
-#crm-container.crm-public .oar-agreements label {
+
+/* Every checkbox, not only the ones in the agreements block.
+
+   Afform wraps a checkbox inside its own label, which is display:block, so the
+   box sat on the text baseline while carrying a top margin calculated for the
+   flex layout below. That put it noticeably high against the first line. The
+   mission affirmation is a standalone field rather than part of the agreements
+   block, which is why it was the one that looked wrong. */
+#crm-container.crm-public .oar-agreements label,
+#crm-container.crm-public af-field.af-field-type-check-box label.crm-af-field-label {
   display: flex;
   align-items: flex-start;
   gap: 0.6rem;
