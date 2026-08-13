@@ -826,7 +826,20 @@ function openar_admin_page(): void {
         <tr>
           <td style="width:12em"><strong>Last sync</strong></td>
           <td style="width:24em">
-            <?php echo esc_html($sync['when'] ?: 'never, as far as this screen can see'); ?>
+            <?php if ($sync['when']) : ?>
+              <?php
+              // Rendered in UTC and rewritten to the reader's own zone by the
+              // script below. The server runs on UTC and the log records UTC,
+              // but nobody reasons about "01:19 UTC" without doing arithmetic
+              // first, and the question this row answers is "was that recent".
+              $utc = gmdate('c', strtotime($sync['when'] . ' UTC'));
+              ?>
+              <span class="openar-localtime" data-utc="<?php echo esc_attr($utc); ?>"><?php
+                echo esc_html($sync['when']);
+              ?></span>
+            <?php else : ?>
+              never, as far as this screen can see
+            <?php endif; ?>
           </td>
           <td style="color:<?php echo $sync['failed'] ? '#a13b1e' : '#646970'; ?>">
             <?php echo esc_html($sync['summary']); ?>
@@ -849,6 +862,19 @@ function openar_admin_page(): void {
         <?php endif; ?>
       </span>
     </p>
+
+    <script>
+      // Progressive: the UTC string is already in the page, so a reader without
+      // scripting still sees a correct time, just not their own.
+      document.querySelectorAll('.openar-localtime').forEach(function (el) {
+        var when = new Date(el.dataset.utc);
+        if (isNaN(when)) { return; }
+        el.textContent = when.toLocaleString(undefined, {
+          dateStyle: 'medium', timeStyle: 'short'
+        });
+        el.title = el.dataset.utc;
+      });
+    </script>
 
     <h2 style="margin-top:2em">Everything else</h2>
     <table class="widefat striped" style="max-width:60em">

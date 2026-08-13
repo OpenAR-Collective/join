@@ -129,12 +129,12 @@ $templates = [];
 
 $templates[] = [
   'msg_title' => 'OpenAR - Membership revoked',
-  'msg_subject' => 'Your membership of the OpenAR Collective',
+  'msg_subject' => 'Your OpenAR Collective membership',
   'closing' => 'Sincerely',
   'msg_text' => <<<TEXT
 Hello {\$firstName},
 
-I am writing to tell you that your membership of The Open Accounts Receivable Collective Foundation has been revoked, for the reason stated below.
+I am writing to tell you that your membership in The Open Accounts Receivable Collective Foundation has been revoked, for the reason stated below.
 
 {\$reason}
 
@@ -152,7 +152,7 @@ TEXT,
   'msg_html' => <<<HTML
 <p>Hello {\$firstName},</p>
 
-<p>I am writing to tell you that your membership of The Open Accounts Receivable Collective Foundation has been revoked, for the reason stated below.</p>
+<p>I am writing to tell you that your membership in The Open Accounts Receivable Collective Foundation has been revoked, for the reason stated below.</p>
 
 <p style="padding:12px 16px;border-left:3px solid #b8b0a4;background:#f6f4f0;">{\$reason}</p>
 
