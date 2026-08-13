@@ -195,8 +195,18 @@ const OPENAR_REVOKE_ACTIVITY = 'Participation revoked';
 const OPENAR_SUPPORTER_DECLINE_TEMPLATE = 'OpenAR - Statement of Support declined';
 const OPENAR_SUPPORTER_DECLINE_ACTIVITY = 'Mission Supporter statement declined';
 
-/** The Statement version a signature is bound to. Bump when the Statement changes. */
-const OPENAR_STATEMENT_VERSION = '1.3';
+/**
+ * The Statement version a signature is bound to. Bump when the Statement
+ * changes, and never reuse a number, because existing records point at it.
+ *
+ * Reset to 1.0 before launch. The Statement was revised several times while it
+ * was being built and the numbering followed, but no organization outside the
+ * Foundation ever saw any of those versions. Starting a signed document at 1.3
+ * would imply two earlier versions a signer could ask to see, and there is
+ * nothing to show them. The only records carrying 1.2 or 1.3 are test
+ * organizations, which go with the rest of the test data.
+ */
+const OPENAR_STATEMENT_VERSION = '1.0';
 
 /**
  * The Community Participation Terms version an application is bound to.
