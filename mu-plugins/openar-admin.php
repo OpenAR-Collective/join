@@ -37,8 +37,8 @@ add_action('wp_dashboard_setup', 'openar_admin_dashboard_widget');
 
 function openar_admin_menu(): void {
   add_management_page(
-    'OpenAR onboarding',
-    'OpenAR onboarding',
+    'OpenAR Members & Supporters',
+    'OpenAR Members & Supporters',
     OPENAR_ADMIN_CAP,
     OPENAR_ADMIN_SLUG,
     'openar_admin_page'
@@ -445,7 +445,7 @@ function openar_admin_page(): void {
     else {
       civi_wp()->initialize();
       $who = civicrm_api4('Contact', 'get', [
-        'select' => ['display_name', 'contact_type'],
+        'select' => ['display_name', 'contact_type', 'Membership.discord_user_id'],
         'where' => [['id', '=', $cid]],
         'checkPermissions' => FALSE,
       ])->first();
@@ -458,6 +458,10 @@ function openar_admin_page(): void {
           'name' => $who['display_name'],
           'supporter' => ($who['contact_type'] === 'Organization'),
           'reason' => $reason,
+          // Carried through so the confirmation can name the one thing this
+          // does not do. The Discord plugin only ever adds people; nothing in
+          // this build removes anybody from the server.
+          'discord' => (string) ($who['Membership.discord_user_id'] ?? ''),
         ];
       }
     }
@@ -469,7 +473,7 @@ function openar_admin_page(): void {
   $revocable = openar_admin_revocable();
   ?>
   <div class="wrap">
-    <h1>OpenAR onboarding</h1>
+    <h1>OpenAR Members &amp; Supporters</h1>
 
     <?php $mailProblem = openar_admin_mail_problem(); ?>
     <?php if ($mailProblem) : ?>
@@ -801,7 +805,65 @@ function openar_admin_page(): void {
       </table>
     <?php endif; ?>
 
-    <h2 style="margin-top:2em">End someone's participation</h2>
+    <h2 style="margin-top:2em">Everything else</h2>
+    <table class="widefat striped" style="max-width:60em">
+      <tbody>
+        <tr>
+          <td style="width:22em"><strong>All form submissions</strong></td>
+          <td><a href="<?php echo esc_url(openar_admin_civi_url('civicrm/admin/afform/submissions', 'reset=1')); ?>">CiviCRM Submissions</a></td>
+        </tr>
+        <tr>
+          <td><strong>Email templates</strong></td>
+          <td><a href="<?php echo esc_url(openar_admin_civi_url('civicrm/admin/messageTemplates', 'reset=1')); ?>">Message Templates</a></td>
+        </tr>
+        <tr>
+          <td><strong>Outbound email</strong></td>
+          <td><a href="<?php echo esc_url(openar_admin_civi_url('civicrm/admin/setting/smtp', 'reset=1')); ?>">Outbound Email settings</a>
+            &mdash; leave this on SMTP; anything else stops every confirmation and welcome</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2 style="margin-top:2.5em;padding-top:1.25em;border-top:2px solid #d63638;color:#a13b1e">
+      Danger zone: ending someone's participation
+    </h2>
+
+    <div style="max-width:60em;padding:14px 18px;margin:0 0 16px;background:#fcf0f1;border-left:4px solid #d63638">
+      <p style="margin:0 0 10px"><strong>Read this before using anything below it.</strong>
+        Revocation is available only on the grounds the Community Programs and
+        Standards Policy states, and for nothing else. In practice almost every
+        legitimate use is somebody asking to be removed.</p>
+
+      <p style="margin:0 0 6px"><strong>A membership may be revoked only for</strong>
+        (Section 7.2): violation of the community standards in Article V; material
+        misrepresentation in the application or professional identification; conduct
+        materially inconsistent with the Foundation's charitable purposes; or
+        unlawful conduct in or directed at the Foundation's spaces or participants.</p>
+
+      <p style="margin:0 0 10px"><strong>An organization's participation may be revoked only for</strong>
+        (Section 7.3): material misrepresentation in the Statement of Support,
+        including the signatory's authority to bind it; use of the designation
+        inconsistent with the Statement that is not corrected after notice; unlawful
+        conduct directed at the Foundation, its community, or its participants; or a
+        determination that continued participation would be unlawful.</p>
+
+      <p style="margin:0 0 10px;padding:10px 14px;background:#fff;border-left:3px solid #a13b1e">
+        <strong>Criticism of the Foundation is never a ground, and that is deliberate.</strong>
+        The policy says a member "may question, criticize, or publicly disagree with
+        the Foundation's board, officers, software, technical decisions, educational
+        materials, published positions, governance, or this policy, without any risk
+        to that member's standing." A change in someone's views is not a ground
+        either, and an organization's products, pricing, business model, customer
+        base, or opinions about industry practices are never grounds. Somebody
+        calling the Foundation, or you, incompetent in public has done nothing that
+        belongs on this screen.</p>
+
+      <p style="margin:0">If what you have in front of you is not on the two lists
+        above, the answer is not revocation. Moderation, a correction request under
+        Section 4.6, or a conversation is. When in doubt, ask the Board first: this
+        cannot be undone, and the person may not reapply for a year.</p>
+    </div>
+
 
     <?php if ($confirm) : ?>
       <div class="card" style="max-width:60em;padding:16px 20px;border-left:4px solid #d63638">
@@ -819,6 +881,23 @@ function openar_admin_page(): void {
         </p>
         <p style="margin:0 0 4px"><strong>They will be sent this, word for word:</strong></p>
         <p style="padding:12px 16px;border-left:3px solid #b8b0a4;background:#f6f4f0;white-space:pre-wrap;margin:0 0 14px"><?php echo esc_html($confirm['reason']); ?></p>
+
+        <?php if (!$confirm['supporter']) : ?>
+          <p style="margin:0 0 14px;padding:10px 14px;background:#fcf9e8;border-left:4px solid #dba617">
+            <strong>This does not remove them from Discord.</strong>
+            Nothing here touches the server, so they keep their access and their
+            roles until somebody removes them by hand. Do that in Discord after
+            this, or they will still be in the members-only channels.
+            <?php if ($confirm['discord']) : ?>
+              <br />Their Discord user ID is
+              <code><?php echo esc_html($confirm['discord']); ?></code>,
+              which you can search in the member list to find them.
+            <?php else : ?>
+              <br />No Discord ID is recorded against them, so they may never have
+              connected an account. Worth checking before you go looking.
+            <?php endif; ?>
+          </p>
+        <?php endif; ?>
 
         <div style="display:flex;gap:12px;align-items:center">
           <form method="post" style="margin:0">
@@ -880,25 +959,6 @@ function openar_admin_page(): void {
         <button type="submit" class="button">Review this revocation</button>
       </form>
     <?php endif; ?>
-
-    <h2 style="margin-top:2em">Everything else</h2>
-    <table class="widefat striped" style="max-width:60em">
-      <tbody>
-        <tr>
-          <td style="width:22em"><strong>All form submissions</strong></td>
-          <td><a href="<?php echo esc_url(openar_admin_civi_url('civicrm/admin/afform/submissions', 'reset=1')); ?>">CiviCRM Submissions</a></td>
-        </tr>
-        <tr>
-          <td><strong>Email templates</strong></td>
-          <td><a href="<?php echo esc_url(openar_admin_civi_url('civicrm/admin/messageTemplates', 'reset=1')); ?>">Message Templates</a></td>
-        </tr>
-        <tr>
-          <td><strong>Outbound email</strong></td>
-          <td><a href="<?php echo esc_url(openar_admin_civi_url('civicrm/admin/setting/smtp', 'reset=1')); ?>">Outbound Email settings</a>
-            &mdash; leave this on SMTP; anything else stops every confirmation and welcome</td>
-        </tr>
-      </tbody>
-    </table>
   </div>
   <?php
 }
@@ -1048,7 +1108,7 @@ function openar_admin_dashboard_widget(): void {
   }
   wp_add_dashboard_widget(
     'openar_onboarding_status',
-    'OpenAR onboarding',
+    'OpenAR Members & Supporters',
     'openar_admin_dashboard_render'
   );
 }
