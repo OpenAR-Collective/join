@@ -62,8 +62,10 @@ if ($spooled) {
     preg_match('/^Subject:\s*(.+)$/mi', (string) $dao->headers, $m);
     echo '  -> ' . str_pad((string) $dao->recipient_email, 36) . trim($m[1] ?? '') . "\n";
   }
-  CRM_Core_DAO::executeQuery('DELETE FROM civicrm_mailing_spool');
-  echo "cleared\n";
+  echo "\nThese were composed correctly and delivered nowhere. They are NOT deleted\n";
+  echo "here: throwing them away silently is how a new member and a new Mission\n";
+  echo "Supporter once went a morning hearing nothing. Send them with:\n";
+  echo "  eval-file deliver-spool.php send\n";
 }
 
 echo "\ncontacts: " . civicrm_api4('Contact', 'get', ['select' => ['row_count'], 'checkPermissions' => FALSE])->count() . "\n";
