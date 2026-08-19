@@ -43,6 +43,37 @@
 
 if (!function_exists('openar_snapshot')) {
 
+  /**
+   * Replace anything whose key names a secret with a marker, at any depth.
+   *
+   * Matching is on the key name rather than a list of known settings, so a
+   * setting captured here later is covered without anyone remembering to add
+   * it. The length is kept because it is what lets a restore be checked
+   * against what was there before, and a length reveals nothing useful.
+   *
+   * smtpAuth deliberately does not match. It is a flag, not a credential, and
+   * redacting it would hide a change of delivery mode, which is exactly the
+   * drift this snapshot exists to show.
+   */
+  function openar_snapshot_redact($value) {
+    if (!is_array($value)) {
+      return $value;
+    }
+    $out = [];
+    foreach ($value as $k => $v) {
+      if (is_array($v)) {
+        $out[$k] = openar_snapshot_redact($v);
+        continue;
+      }
+      $secret = is_string($k)
+        && preg_match('/pass|pwd|user|token|secret|key|credential/i', $k);
+      $out[$k] = ($secret && $v !== NULL && $v !== '')
+        ? '(redacted, ' . strlen((string) $v) . ' chars)'
+        : $v;
+    }
+    return $out;
+  }
+
   /** Run a git command in the snapshot repository. Returns [exitCode, output]. */
   function openar_snapshot_git(string $dir, array $args): array {
     // The committer identity is passed per command so git never needs a
@@ -141,19 +172,12 @@ if (!function_exists('openar_snapshot')) {
     // Settings, with credentials stripped. mailing_backend holds the delivery
     // mode and the SMTP credentials in one array, so a careless write to it
     // destroys the mail configuration. That happened. The shape is worth
-    // keeping even though the secrets deliberately are not.
+    // keeping even though the secrets deliberately are not. Redaction matches
+    // on key name, so it also covers qfKey and anything added here later.
     try {
       $settings = [];
       foreach (['mailing_backend', 'languageLimit', 'checksum_timeout'] as $name) {
-        $value = Civi::settings()->get($name);
-        if (is_array($value)) {
-          foreach (['smtpPassword', 'smtpUsername'] as $secret) {
-            if (isset($value[$secret]) && $value[$secret] !== '') {
-              $value[$secret] = '(redacted, ' . strlen((string) $value[$secret]) . ' chars)';
-            }
-          }
-        }
-        $settings[$name] = $value;
+        $settings[$name] = openar_snapshot_redact(Civi::settings()->get($name));
       }
       file_put_contents("{$base}/settings.json",
         json_encode($settings, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
