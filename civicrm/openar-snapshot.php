@@ -54,6 +54,11 @@ if (!function_exists('openar_snapshot')) {
    * smtpAuth deliberately does not match. It is a flag, not a credential, and
    * redacting it would hide a change of delivery mode, which is exactly the
    * drift this snapshot exists to show.
+   *
+   * Query strings are dropped from URLs as well. Key matching cannot see
+   * inside a value, and a CiviCRM admin URL carries qfKey in its query, so
+   * entryURL would otherwise smuggle a session token past the redaction. The
+   * scheme, host and path are kept, because that is the part worth diffing.
    */
   function openar_snapshot_redact($value) {
     if (!is_array($value)) {
@@ -65,11 +70,19 @@ if (!function_exists('openar_snapshot')) {
         $out[$k] = openar_snapshot_redact($v);
         continue;
       }
-      $secret = is_string($k)
-        && preg_match('/pass|pwd|user|token|secret|key|credential/i', $k);
-      $out[$k] = ($secret && $v !== NULL && $v !== '')
-        ? '(redacted, ' . strlen((string) $v) . ' chars)'
-        : $v;
+      if (is_string($k)
+        && preg_match('/pass|pwd|user|token|secret|key|credential/i', $k)
+        && $v !== NULL && $v !== '') {
+        $out[$k] = '(redacted, ' . strlen((string) $v) . ' chars)';
+        continue;
+      }
+      if (is_string($v)
+        && preg_match('#^https?://#i', $v)
+        && preg_match('/[?#]/', $v)) {
+        $out[$k] = preg_replace('/[?#].*$/s', '', $v) . ' (query removed)';
+        continue;
+      }
+      $out[$k] = $v;
     }
     return $out;
   }
