@@ -119,7 +119,7 @@ function openar_admin_review_queue(): array {
   $rows = [];
   foreach (civicrm_api4('Contact', 'get', [
     'select' => [
-      'id', 'display_name', 'created_date',
+      'id', 'display_name', 'created_date', 'job_title',
       'Membership.employer_affiliation', 'Membership.linkedin_url',
       'Membership.email_confirmed_date', 'Membership.terms_version',
       'Membership.application_notes',
@@ -426,6 +426,26 @@ function openar_admin_page(): void {
     }
   }
 
+  // Resending a Discord link. Harmless by design: it re-sends something the
+  // member already had, to the address already on file, and cannot be used to
+  // reach anybody who is not currently a member.
+  if (!empty($_POST['openar_send_discord']) && !empty($_POST['openar_discord_contact'])) {
+    $cid = (int) $_POST['openar_discord_contact'];
+
+    if (!isset($_POST['_wpnonce']) || !wp_verify_nonce(sanitize_key($_POST['_wpnonce']), 'openar_send_discord')) {
+      $error = 'That request could not be verified. Please try again.';
+    }
+    else {
+      $result = openar_admin_send_discord_link($cid);
+      if (str_starts_with($result, 'Sent')) {
+        $notice = $result;
+      }
+      else {
+        $error = $result;
+      }
+    }
+  }
+
   // Revoking is shown back before it happens. Approving and declining act on
   // somebody who applied and is waiting to hear; revoking acts on somebody in
   // good standing who is not expecting anything, ends their access, and sends
@@ -573,6 +593,13 @@ function openar_admin_page(): void {
               'html' => $a['email']
                 ? '<a href="mailto:' . esc_attr($a['email']) . '">' . esc_html($a['email']) . '</a>'
                 : '<span style="color:#646970">(none)</span>',
+              'note' => '',
+            ],
+            [
+              'label' => 'Job title',
+              'html' => $a['job_title']
+                ? esc_html($a['job_title'])
+                : '<span style="color:#646970">(not given)</span>',
               'note' => '',
             ],
             [
@@ -844,16 +871,18 @@ function openar_admin_page(): void {
           <td style="color:<?php echo $sync['failed'] ? '#a13b1e' : '#646970'; ?>">
             <?php echo esc_html($sync['summary']); ?>
           </td>
+          <td style="text-align:right;white-space:nowrap">
+            <form method="post" style="margin:0">
+              <?php wp_nonce_field('openar_sync_roster'); ?>
+              <input type="hidden" name="openar_sync_roster" value="1" />
+              <button type="submit" class="button">Sync the roster now</button>
+            </form>
+          </td>
         </tr>
       </tbody>
     </table>
 
-    <p style="margin:12px 0 0;display:flex;gap:14px;align-items:center;flex-wrap:wrap">
-      <form method="post" style="margin:0">
-        <?php wp_nonce_field('openar_sync_roster'); ?>
-        <input type="hidden" name="openar_sync_roster" value="1" />
-        <button type="submit" class="button">Sync the roster now</button>
-      </form>
+    <p style="margin:12px 0 0">
       <span class="description" style="max-width:40em">
         It runs on its own every hour at seventeen minutes past. This asks for one
         straight away, which takes about a minute to start.
@@ -875,6 +904,40 @@ function openar_admin_page(): void {
         el.title = el.dataset.utc;
       });
     </script>
+
+    <h2 style="margin-top:2em">Send a Discord link</h2>
+    <p class="description" style="max-width:60em">
+      For a member who has mislaid the link in their welcome email. This sends
+      the same personal link again, to the address already on file. It cannot
+      reach anybody who is not a current member, and it tells them nothing they
+      were not already entitled to know, so it is safe to use whenever somebody
+      asks. Joining Discord is optional, so send this when it is wanted rather
+      than to prompt people who have not asked.
+    </p>
+
+    <?php $discordPeople = openar_admin_discord_candidates(); ?>
+    <?php if (!$discordPeople) : ?>
+      <p class="description">There are no current members to send to.</p>
+    <?php elseif (!function_exists('openar_discord_configured') || !openar_discord_configured()) : ?>
+      <p class="description"><strong>Discord is not configured</strong>, so there is no link to send.
+        The five constants belong in <code>wp-config.php</code>.</p>
+    <?php else : ?>
+      <form method="post" action="<?php echo esc_url(admin_url('tools.php?page=' . OPENAR_ADMIN_SLUG)); ?>" class="card" style="max-width:60em;padding:16px 20px;margin:14px 0">
+        <?php wp_nonce_field('openar_send_discord'); ?>
+        <input type="hidden" name="openar_send_discord" value="1" />
+
+        <label for="openar_discord_contact"><strong>Who</strong></label>
+        <p style="margin:6px 0 0;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <select name="openar_discord_contact" id="openar_discord_contact" style="min-width:28em" required>
+            <option value="">Choose a member</option>
+            <?php foreach ($discordPeople as $person) : ?>
+              <option value="<?php echo (int) $person['id']; ?>"><?php echo esc_html($person['label']); ?></option>
+            <?php endforeach; ?>
+          </select>
+          <button type="submit" class="button">Send the Discord link</button>
+        </p>
+      </form>
+    <?php endif; ?>
 
     <h2 style="margin-top:2em">Everything else</h2>
     <table class="widefat striped" style="max-width:60em">
@@ -1343,6 +1406,12 @@ function openar_admin_revocable(): array {
     }
   }
 
+  // Sorted on the label, which is what the reader sees. CiviCRM's sort_name is
+  // "Last, First" while display_name is "First Last", so ordering by sort_name
+  // and showing display_name produces a list that is correctly sorted on a
+  // string nobody can see, and looks shuffled to the person using it.
+  usort($out, fn($a, $b) => strnatcasecmp($a['label'], $b['label']));
+
   return $out;
 }
 
@@ -1477,6 +1546,13 @@ function openar_admin_rows(?array $pending = NULL): array {
   $group = fn(string $name) => openar_admin_civi_url('civicrm/group/search',
     'reset=1&force=1&context=smog&gid=' . openar_admin_group_id($name));
 
+  // SearchKit addresses a display through a URL fragment, which the query
+  // string helper cannot carry, so the display path is appended after it. The
+  // two names are the saved search and the display of the same names in
+  // CiviCRM; rename either there and this link stops resolving.
+  $display = fn(string $search, string $table) => openar_admin_civi_url('civicrm/search')
+    . '#/display/' . $search . '/' . $table;
+
   $members = $of('membership');
   $supporters = $of('supporter');
 
@@ -1506,8 +1582,8 @@ function openar_admin_rows(?array $pending = NULL): array {
       'label' => 'Members',
       'note' => 'Individuals issued a member ID',
       'count' => openar_admin_group_count('members'),
-      'url' => $group('members'),
-      'where' => 'Members group, in CiviCRM',
+      'url' => $display('openar_members', 'openar_members_table'),
+      'where' => 'Members table, in CiviCRM',
     ],
     [
       'side' => 'supporter',
@@ -1625,4 +1701,132 @@ function openar_admin_dashboard_render(): void {
 
   <p style="margin:12px 0 0"><a href="<?php echo esc_url($screen); ?>" class="button button-small">Open onboarding</a></p>
   <?php
+}
+
+
+/**
+ * Everyone who could be sent a Discord link: current members, in the order a
+ * reader would look for them.
+ *
+ * Members who have already connected are included rather than filtered out.
+ * Somebody who has lost access to their Discord account needs exactly this, and
+ * the connect flow handles a second account by replacing the stored id and
+ * noting the change on the record.
+ */
+function openar_admin_discord_candidates(): array {
+  if (!function_exists('civi_wp')) {
+    return [];
+  }
+  civi_wp()->initialize();
+
+  $gid = openar_admin_group_id(OPENAR_MEMBERS_GROUP);
+  if (!$gid) {
+    return [];
+  }
+
+  $ids = [];
+  foreach (civicrm_api4('GroupContact', 'get', [
+    'select' => ['contact_id'],
+    'where' => [['group_id', '=', $gid], ['status', '=', 'Added'],
+                ['contact_id.is_deleted', '=', FALSE]],
+    'checkPermissions' => FALSE,
+  ]) as $r) {
+    $ids[] = (int) $r['contact_id'];
+  }
+  if (!$ids) {
+    return [];
+  }
+
+  $out = [];
+  foreach (civicrm_api4('Contact', 'get', [
+    'select' => ['id', 'display_name', 'Membership.member_number', 'Membership.discord_user_id'],
+    'where' => [['id', 'IN', $ids]],
+    'checkPermissions' => FALSE,
+  ]) as $c) {
+    $label = (string) $c['display_name'];
+    if (!empty($c['Membership.member_number'])) {
+      $label .= ' (member ' . $c['Membership.member_number'] . ')';
+    }
+    if (!empty($c['Membership.discord_user_id'])) {
+      $label .= ' - already connected';
+    }
+    $out[] = ['id' => (int) $c['id'], 'label' => $label];
+  }
+
+  // Sorted on the label for the same reason the revocation list is.
+  usort($out, fn($a, $b) => strnatcasecmp($a['label'], $b['label']));
+
+  return $out;
+}
+
+/**
+ * Send one member their Discord link.
+ *
+ * @return string A sentence for the screen. Anything not starting "Sent" is an error.
+ */
+function openar_admin_send_discord_link(int $contactId): string {
+  if (!function_exists('openar_discord_link_for')) {
+    return 'The Discord plugin is not loaded, so no link could be built.';
+  }
+  civi_wp()->initialize();
+
+  $contact = civicrm_api4('Contact', 'get', [
+    'select' => ['id', 'first_name', 'display_name', 'Membership.member_number'],
+    'where' => [['id', '=', $contactId]],
+    'checkPermissions' => FALSE,
+  ])->first();
+
+  if (!$contact) {
+    return "Contact #{$contactId} no longer exists.";
+  }
+  if (!function_exists('openar_in_group') || !openar_in_group($contactId, OPENAR_MEMBERS_GROUP)) {
+    return "{$contact['display_name']} is not a current member, so no link was sent.";
+  }
+
+  $link = openar_discord_link_for($contactId);
+  if ($link === '') {
+    return 'Discord is not configured, so there is no link to send.';
+  }
+
+  $email = civicrm_api4('Email', 'get', [
+    'select' => ['email', 'on_hold'],
+    'where' => [['contact_id', '=', $contactId]],
+    'orderBy' => ['is_primary' => 'DESC'],
+    'checkPermissions' => FALSE,
+  ])->first();
+
+  if (empty($email['email'])) {
+    return "{$contact['display_name']} has no email address on file.";
+  }
+  if (!empty($email['on_hold'])) {
+    return "{$contact['display_name']}'s address is on hold because mail to it bounced. Nothing was sent.";
+  }
+
+  $template = civicrm_api4('MessageTemplate', 'get', [
+    'select' => ['id'],
+    'where' => [['msg_title', '=', 'OpenAR - Your Discord link, again'], ['is_active', '=', TRUE]],
+    'checkPermissions' => FALSE,
+  ])->first();
+
+  if (!$template) {
+    return 'The Discord link template is missing. Run connect-template.php.';
+  }
+
+  [$fromName, $fromEmail] = CRM_Core_BAO_Domain::getNameAndEmail();
+
+  CRM_Core_BAO_MessageTemplate::sendTemplate([
+    'messageTemplateID' => $template['id'],
+    'from' => sprintf('%s <%s>', $fromName, $fromEmail),
+    'toEmail' => $email['email'],
+    'contactId' => $contactId,
+    'tokenContext' => ['contactId' => $contactId],
+    'tplParams' => [
+      'firstName' => $contact['first_name'] ?? '',
+      'memberNumber' => $contact['Membership.member_number'] ?? '',
+      'discordUrl' => $link,
+      'expiryDays' => (int) (Civi::settings()->get('checksum_timeout') ?: 7),
+    ],
+  ]);
+
+  return sprintf('Sent a fresh Discord link to %s at %s.', $contact['display_name'], $email['email']);
 }
