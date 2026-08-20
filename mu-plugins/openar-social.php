@@ -42,7 +42,10 @@ const OPENAR_SOCIAL = [
 ];
 
 const OPENAR_SOCIAL_FALLBACK = 'The Open Accounts Receivable Collective Foundation builds free, openly licensed software and publishes open compliance resources for the accounts receivable industry.';
-const OPENAR_SOCIAL_IMAGE = 'https://openarcollective.org/android-chrome-512x512.png';
+// 1200x627, the ratio the networks crop to. The favicon that was here before
+// is square, and LinkedIn cropped it to a band across the middle of the
+// hexagon with the wordmark nowhere in the frame.
+const OPENAR_SOCIAL_IMAGE = 'https://openarcollective.org/assets/social-card.png';
 
 /**
  * The short path being served, or '' when this is not one of them.
@@ -97,7 +100,9 @@ add_action('wp_head', function () {
   }
 
   // Twitter reads its own names and falls back to Open Graph for the rest.
-  printf("<meta name=\"twitter:card\" content=\"summary\" />\n");
+  // summary_large_image rather than summary: the card is 1200x627, and
+  // summary would shrink it back to a small square thumbnail.
+  printf("<meta name=\"twitter:card\" content=\"summary_large_image\" />\n");
   printf("<meta name=\"twitter:title\" content=\"%s\" />\n", esc_attr($title));
   printf("<meta name=\"twitter:description\" content=\"%s\" />\n", esc_attr($description));
   printf("<meta name=\"description\" content=\"%s\" />\n", esc_attr($description));
