@@ -2,7 +2,7 @@
 /**
  * Plugin Name: OpenAR onboarding admin
  * Description: A screen for the parts of onboarding that CiviCRM cannot show, chiefly unconfirmed applications.
- * Version:     1.0.0
+ * Version:     1.1.0
  * License:     Apache-2.0
  *
  * CiviCRM's own Submissions screen lists form submissions, but for an
@@ -34,6 +34,7 @@ const OPENAR_ADMIN_CAP = 'manage_options';
 
 add_action('admin_menu', 'openar_admin_menu');
 add_action('wp_dashboard_setup', 'openar_admin_dashboard_widget');
+add_action('admin_init', 'openar_admin_badge_download');
 
 function openar_admin_menu(): void {
   add_management_page(
@@ -437,6 +438,28 @@ function openar_admin_page(): void {
     }
     else {
       $result = openar_admin_send_discord_link($cid);
+      if (str_starts_with($result, 'Sent')) {
+        $notice = $result;
+      }
+      else {
+        $error = $result;
+      }
+    }
+  }
+
+  // Emailing a member their badge. As harmless as the Discord resend and for
+  // the same reasons: it re-sends something the member already had, to the
+  // address already on file. The download variant of the same form never
+  // reaches this page; openar_admin_badge_download() streams it and exits
+  // before any admin HTML is out the door.
+  if (($_POST['openar_badge_action'] ?? '') === 'email' && !empty($_POST['openar_badge_contact'])) {
+    $cid = (int) $_POST['openar_badge_contact'];
+
+    if (!isset($_POST['_wpnonce']) || !wp_verify_nonce(sanitize_key($_POST['_wpnonce']), 'openar_send_badge')) {
+      $error = 'That request could not be verified. Please try again.';
+    }
+    else {
+      $result = openar_admin_send_badge($cid);
       if (str_starts_with($result, 'Sent')) {
         $notice = $result;
       }
@@ -935,6 +958,39 @@ function openar_admin_page(): void {
             <?php endforeach; ?>
           </select>
           <button type="submit" class="button">Send the Discord link</button>
+        </p>
+      </form>
+    <?php endif; ?>
+
+    <h2 style="margin-top:2em">Send a member badge</h2>
+    <p class="description" style="max-width:60em">
+      The welcome email already carries the badge, so this is for a member who
+      has lost theirs or asks for a fresh copy. The badge is drawn fresh from
+      the member number every time, so there is no stored image to go stale.
+      Email sends it to the address on file with a short note; Download saves
+      the same image here, for the times the file itself is wanted.
+    </p>
+
+    <?php $badgeProblem = function_exists('openar_badge_problem') ? openar_badge_problem() : 'The badges plugin is not loaded.'; ?>
+    <?php $badgePeople = $badgeProblem === '' ? openar_admin_badge_candidates() : []; ?>
+    <?php if ($badgeProblem !== '') : ?>
+      <p class="description"><strong>Badges cannot be drawn.</strong> <?php echo esc_html($badgeProblem); ?></p>
+    <?php elseif (!$badgePeople) : ?>
+      <p class="description">There are no current members with a member number.</p>
+    <?php else : ?>
+      <form method="post" action="<?php echo esc_url(admin_url('tools.php?page=' . OPENAR_ADMIN_SLUG)); ?>" class="card" style="max-width:60em;padding:16px 20px;margin:14px 0">
+        <?php wp_nonce_field('openar_send_badge'); ?>
+
+        <label for="openar_badge_contact"><strong>Who</strong></label>
+        <p style="margin:6px 0 0;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <select name="openar_badge_contact" id="openar_badge_contact" style="min-width:28em" required>
+            <option value="">Choose a member</option>
+            <?php foreach ($badgePeople as $person) : ?>
+              <option value="<?php echo (int) $person['id']; ?>"><?php echo esc_html($person['label']); ?></option>
+            <?php endforeach; ?>
+          </select>
+          <button type="submit" name="openar_badge_action" value="email" class="button">Email their badge</button>
+          <button type="submit" name="openar_badge_action" value="download" class="button">Download it</button>
         </p>
       </form>
     <?php endif; ?>
@@ -1829,4 +1885,196 @@ function openar_admin_send_discord_link(int $contactId): string {
   ]);
 
   return sprintf('Sent a fresh Discord link to %s at %s.', $contact['display_name'], $email['email']);
+}
+
+/**
+ * Everyone who has a badge to send: current members with a member number.
+ *
+ * The number is what the badge is drawn from, so a member without one has no
+ * badge yet and is left off the list rather than offered and refused. The
+ * Dashboard already warns when the numbered count and the members group
+ * disagree, so the gap is visible where the counts are.
+ */
+function openar_admin_badge_candidates(): array {
+  if (!function_exists('civi_wp')) {
+    return [];
+  }
+  civi_wp()->initialize();
+
+  $gid = openar_admin_group_id(OPENAR_MEMBERS_GROUP);
+  if (!$gid) {
+    return [];
+  }
+
+  $ids = [];
+  foreach (civicrm_api4('GroupContact', 'get', [
+    'select' => ['contact_id'],
+    'where' => [['group_id', '=', $gid], ['status', '=', 'Added'],
+                ['contact_id.is_deleted', '=', FALSE]],
+    'checkPermissions' => FALSE,
+  ]) as $r) {
+    $ids[] = (int) $r['contact_id'];
+  }
+  if (!$ids) {
+    return [];
+  }
+
+  $out = [];
+  foreach (civicrm_api4('Contact', 'get', [
+    'select' => ['id', 'display_name', 'Membership.member_number'],
+    'where' => [['id', 'IN', $ids], ['Membership.member_number', 'IS NOT EMPTY']],
+    'checkPermissions' => FALSE,
+  ]) as $c) {
+    $out[] = [
+      'id' => (int) $c['id'],
+      'number' => (int) $c['Membership.member_number'],
+      'label' => $c['display_name'] . ' (member ' . $c['Membership.member_number'] . ')',
+    ];
+  }
+
+  // Sorted on the label for the same reason the revocation list is.
+  usort($out, fn($a, $b) => strnatcasecmp($a['label'], $b['label']));
+
+  return $out;
+}
+
+/**
+ * Email one member their badge.
+ *
+ * @return string A sentence for the screen. Anything not starting "Sent" is an error.
+ */
+function openar_admin_send_badge(int $contactId): string {
+  if (!function_exists('openar_member_badge_attachment')) {
+    return 'The badges plugin is not loaded, so no badge could be drawn.';
+  }
+  $problem = openar_badge_problem();
+  if ($problem !== '') {
+    return $problem;
+  }
+  civi_wp()->initialize();
+
+  $contact = civicrm_api4('Contact', 'get', [
+    'select' => ['id', 'first_name', 'display_name', 'Membership.member_number'],
+    'where' => [['id', '=', $contactId]],
+    'checkPermissions' => FALSE,
+  ])->first();
+
+  if (!$contact) {
+    return "Contact #{$contactId} no longer exists.";
+  }
+  if (!function_exists('openar_in_group') || !openar_in_group($contactId, OPENAR_MEMBERS_GROUP)) {
+    return "{$contact['display_name']} is not a current member, so no badge was sent.";
+  }
+
+  $number = (int) ($contact['Membership.member_number'] ?? 0);
+  if ($number < 1) {
+    return "{$contact['display_name']} has no member number, so there is no badge to draw.";
+  }
+
+  $email = civicrm_api4('Email', 'get', [
+    'select' => ['email', 'on_hold'],
+    'where' => [['contact_id', '=', $contactId]],
+    'orderBy' => ['is_primary' => 'DESC'],
+    'checkPermissions' => FALSE,
+  ])->first();
+
+  if (empty($email['email'])) {
+    return "{$contact['display_name']} has no email address on file.";
+  }
+  if (!empty($email['on_hold'])) {
+    return "{$contact['display_name']}'s address is on hold because mail to it bounced. Nothing was sent.";
+  }
+
+  $template = civicrm_api4('MessageTemplate', 'get', [
+    'select' => ['id'],
+    'where' => [['msg_title', '=', 'OpenAR - Your member badge'], ['is_active', '=', TRUE]],
+    'checkPermissions' => FALSE,
+  ])->first();
+
+  if (!$template) {
+    return 'The badge template is missing. Run badge-template.php.';
+  }
+
+  $badge = openar_member_badge_attachment($number);
+  if (!$badge) {
+    return 'The badge image could not be drawn. Check the PHP error log.';
+  }
+
+  [$fromName, $fromEmail] = CRM_Core_BAO_Domain::getNameAndEmail();
+
+  CRM_Core_BAO_MessageTemplate::sendTemplate([
+    'messageTemplateID' => $template['id'],
+    'from' => sprintf('%s <%s>', $fromName, $fromEmail),
+    'toEmail' => $email['email'],
+    'contactId' => $contactId,
+    'tokenContext' => ['contactId' => $contactId],
+    'tplParams' => [
+      'firstName' => $contact['first_name'] ?? '',
+      'memberNumber' => $number,
+    ],
+    'attachments' => [$badge],
+  ]);
+
+  @unlink($badge['fullPath']);
+
+  return sprintf('Sent member badge #%d to %s at %s.', $number, $contact['display_name'], $email['email']);
+}
+
+/**
+ * Stream one member's badge to the browser as a download.
+ *
+ * Runs on admin_init because it has to answer with a PNG instead of a page,
+ * and by the time the Tools screen callback runs the admin header is already
+ * out the door. It handles only its own form (the Download button beside
+ * "Send a member badge") and touches nothing else.
+ *
+ * A POST with a nonce, like every other action here, even though it changes
+ * nothing: the payoff of a GET would be a bookmarkable URL, and a bookmark to
+ * a member's badge is not worth having two patterns on one screen.
+ */
+function openar_admin_badge_download(): void {
+  if (($_POST['openar_badge_action'] ?? '') !== 'download' || empty($_POST['openar_badge_contact'])) {
+    return;
+  }
+  if (!current_user_can(OPENAR_ADMIN_CAP)) {
+    return;
+  }
+  check_admin_referer('openar_send_badge');
+
+  if (!function_exists('openar_member_badge_create') || !function_exists('civi_wp')) {
+    wp_die('The badges plugin is not loaded, so no badge could be drawn.',
+      '', ['back_link' => TRUE]);
+  }
+  $problem = openar_badge_problem();
+  if ($problem !== '') {
+    wp_die(esc_html($problem), '', ['back_link' => TRUE]);
+  }
+
+  civi_wp()->initialize();
+  $contactId = (int) $_POST['openar_badge_contact'];
+  $contact = civicrm_api4('Contact', 'get', [
+    'select' => ['id', 'display_name', 'Membership.member_number'],
+    'where' => [['id', '=', $contactId]],
+    'checkPermissions' => FALSE,
+  ])->first();
+
+  $number = (int) ($contact['Membership.member_number'] ?? 0);
+  if (!$contact || $number < 1) {
+    wp_die('That contact has no member number, so there is no badge to draw.',
+      '', ['back_link' => TRUE]);
+  }
+
+  $path = openar_member_badge_create($number);
+  if ($path === NULL) {
+    wp_die('The badge image could not be drawn. Check the PHP error log.',
+      '', ['back_link' => TRUE]);
+  }
+
+  nocache_headers();
+  header('Content-Type: image/png');
+  header('Content-Disposition: attachment; filename="openar-member-badge-' . $number . '.png"');
+  header('Content-Length: ' . (string) filesize($path));
+  readfile($path);
+  @unlink($path);
+  exit;
 }

@@ -2,7 +2,7 @@
 /**
  * Plugin Name: OpenAR Collective onboarding
  * Description: Confirmation links, review queues, and publication for membership and Mission Supporter signups.
- * Version:     1.2.0
+ * Version:     1.3.0
  * License:     Apache-2.0
  *
  * Deployed as a must-use plugin at wp-content/mu-plugins/openar-onboarding.php,
@@ -1072,6 +1072,17 @@ function openar_publish_supporter(int $contactId): void {
     return;
   }
 
+  // A static file, the same for every organization, so a missing badge means a
+  // missing asset. It downgrades the email rather than blocking the listing,
+  // and the template only mentions an attachment when one is really there.
+  $badge = function_exists('openar_supporter_badge_attachment')
+    ? openar_supporter_badge_attachment()
+    : NULL;
+  if (!$badge) {
+    \Civi::log()->warning('OpenAR onboarding: supporter {cid} told without a badge; '
+      . 'openar-assets/openar-mission-supporter-badge-512.png is not readable', ['cid' => $contactId]);
+  }
+
   [$fromName, $fromEmail] = \CRM_Core_BAO_Domain::getNameAndEmail();
 
   \CRM_Core_BAO_MessageTemplate::sendTemplate([
@@ -1084,7 +1095,9 @@ function openar_publish_supporter(int $contactId): void {
       'firstName' => openar_first_name($org['MissionSupporter.signer_name'] ?? ''),
       'organizationName' => trim((string) ($org['MissionSupporter.trade_name'] ?? ''))
         ?: (string) $org['organization_name'],
+      'badgeAttached' => (bool) $badge,
     ],
+    'attachments' => $badge ? [$badge] : [],
   ]);
 
   \Civi\Api4\Activity::create(FALSE)
@@ -1913,6 +1926,23 @@ function openar_send_welcome(int $contactId, int $number): void {
 
   $discordUrl = openar_discord_link_for($contactId);
 
+  // Drawn fresh for this send and deleted after it; the badge is a pure
+  // function of the number, so nothing is stored between sends. A badge
+  // failure downgrades the email rather than blocking an admission, and the
+  // template only mentions an attachment when one is really there.
+  $badge = function_exists('openar_member_badge_attachment')
+    ? openar_member_badge_attachment($number)
+    : NULL;
+  if (!$badge) {
+    $why = function_exists('openar_badge_problem')
+      ? (openar_badge_problem() ?: 'the image could not be drawn')
+      : 'the badges plugin is not loaded';
+    \Civi::log()->warning('OpenAR onboarding: welcome for member {n} sent without a badge: {why}', [
+      'n' => $number,
+      'why' => $why,
+    ]);
+  }
+
   [$fromName, $fromEmail] = \CRM_Core_BAO_Domain::getNameAndEmail();
 
   \CRM_Core_BAO_MessageTemplate::sendTemplate([
@@ -1925,8 +1955,14 @@ function openar_send_welcome(int $contactId, int $number): void {
       'firstName' => $contact['first_name'] ?? '',
       'memberNumber' => $number,
       'discordUrl' => $discordUrl,
+      'badgeAttached' => (bool) $badge,
     ],
+    'attachments' => $badge ? [$badge] : [],
   ]);
+
+  if ($badge) {
+    @unlink($badge['fullPath']);
+  }
 }
 
 function openar_group_id(string $name): ?int {

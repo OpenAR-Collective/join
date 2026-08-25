@@ -33,6 +33,10 @@ Your membership has been reviewed and approved. You're in!
 You are member #{$memberNumber}
 We won't ask you for it often, and we can always look you up by name or email, but it is uniquely yours to cherish all the same.
 
+{if $badgeAttached}
+Your member badge is attached, stamped with your number. You are welcome to display it in a signature, a profile, or a slide to show your membership. It signifies membership, not any certification or endorsement by the Foundation.
+
+{/if}
 {if $discordUrl}
 Most of what makes membership worthwhile happens on the Foundation's Discord server, where members discuss, collaborate, and create. Open this link to join. You will be asked to sign in to Discord, or to create an account if you do not have one, and you will arrive with your name and your access already set.
 
@@ -71,6 +75,9 @@ $html = <<<'HTML'
 <strong style="font-size:17px;">You are member #{$memberNumber}</strong><br />
 <em style="color:#5c564c;">We won't ask you for it often, and we can always look you up by name or email, but it is uniquely yours to cherish all the same.</em>
 </p>
+{if $badgeAttached}
+<p>Your member badge is attached, stamped with your number. You are welcome to display it in a signature, a profile, or a slide to show your membership. It signifies membership, not any certification or endorsement by the Foundation.</p>
+{/if}
 {if $discordUrl}
 <p>Most of what makes membership worthwhile happens on the Foundation's Discord server, where members discuss, collaborate, and create. Use the button below to join. You will be asked to sign in to Discord, or to create an account if you do not have one, and you will arrive with your name and your access already set.</p>
 

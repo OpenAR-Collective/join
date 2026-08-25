@@ -42,10 +42,11 @@ nothing, apart from credentials.
 
 | Directory | What it holds |
 |---|---|
-| `mu-plugins/` | The four must-use plugins: onboarding, Discord connect, short URLs, admin screen |
+| `mu-plugins/` | The must-use plugins: onboarding, Discord connect, short URLs, badges, admin screen |
+| `mu-plugins/openar-assets/` | The badge art and font the badges plugin draws with |
 | `civicrm/` | Scripts that build the custom fields, groups, forms and email templates |
 | `wordpress/` | The join site's brand stylesheet and its installer |
-| `server/` | The roster publishing job and its GitHub App token minter |
+| `server/` | The roster publishing job, its GitHub App token minter, and the plugin and asset installers |
 
 Not here, and deliberately: credentials. The Discord client secret and bot token
 live in `wp-config.php`, the GitHub App private key in `~/.config/openar/`, and
@@ -114,6 +115,20 @@ nothing arrives.
 
 `civicrm/pending-applications.php` still does the same job from a terminal, and
 is the fallback if the plugin is ever unloaded.
+
+## Badges
+
+Every member's welcome email carries their badge: the blank member badge with
+their number drawn over the center hexagon, rendered fresh at send time by
+`openar-badges.php` from the art in `mu-plugins/openar-assets/`. The Mission
+Supporter listing email carries the supporter badge the same way, as a static
+file. A badge that cannot be drawn downgrades the email rather than blocking
+the admission, and the emails only mention an attachment when one is there.
+
+The Tools screen has a **Send a member badge** section for a member who has
+lost theirs: pick the member, and Email sends a fresh copy to the address on
+file while Download saves the same image locally. The badge is a pure function
+of the member number, so there is no stored image to manage or go stale.
 
 ## CiviCRM belongs in wp-admin
 

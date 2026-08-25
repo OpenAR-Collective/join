@@ -201,6 +201,10 @@ Saying publicly that you support this work matters, and we are grateful for it. 
 
 To be plain about what the listing is not: it is not a review, approval, or endorsement by the Foundation, and it does not make your organization a member, partner, affiliate, or sponsor.
 
+{if $badgeAttached}
+The Mission Supporter badge is attached for your organization's use. You are welcome to display it on your website or in your materials alongside your listing. It signifies your organization's statement of support, and it may not be presented as certification, approval, or endorsement by the Foundation.
+
+{/if}
 To correct anything in your listing, write to membership@openarcollective.org and we will sort it out.
 
 You can withdraw at any time by writing to the same address, with no reason needed, and your organization will be removed promptly. The Statement asks nothing further of you: no dues, no financial commitment, and no position on industry practices, regulation, or litigation.
@@ -213,6 +217,10 @@ TEXT,
 <p>Saying publicly that you support this work matters, and we are grateful for it. Organizations are listed in alphabetical order, on identical terms, with no tiers, so your organization sits alongside every other on exactly the same footing.</p>
 
 <p>To be plain about what the listing is not: it is not a review, approval, or endorsement by the Foundation, and it does not make your organization a member, partner, affiliate, or sponsor.</p>
+
+{if $badgeAttached}
+<p>The Mission Supporter badge is attached for your organization's use. You are welcome to display it on your website or in your materials alongside your listing. It signifies your organization's statement of support, and it may not be presented as certification, approval, or endorsement by the Foundation.</p>
+{/if}
 
 <p>To correct anything in your listing, write to <a href="mailto:membership@openarcollective.org">membership@openarcollective.org</a> and we will sort it out.</p>
 
