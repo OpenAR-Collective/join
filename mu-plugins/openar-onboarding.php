@@ -2,7 +2,7 @@
 /**
  * Plugin Name: OpenAR Collective onboarding
  * Description: Confirmation links, review queues, and publication for membership and Mission Supporter signups.
- * Version:     1.3.0
+ * Version:     1.3.1
  * License:     Apache-2.0
  *
  * Deployed as a must-use plugin at wp-content/mu-plugins/openar-onboarding.php,
@@ -205,8 +205,11 @@ const OPENAR_SUPPORTER_DECLINE_ACTIVITY = 'Mission Supporter statement declined'
  * would imply two earlier versions a signer could ask to see, and there is
  * nothing to show them. The only records carrying 1.2 or 1.3 are test
  * organizations, which go with the rest of the test data.
+ *
+ * 1.1 (2026-08-25): the badge paragraph now says the badge is issued with the
+ * listing confirmation, replacing the promise that images may come later.
  */
-const OPENAR_STATEMENT_VERSION = '1.0';
+const OPENAR_STATEMENT_VERSION = '1.1';
 
 /**
  * The Community Participation Terms version an application is bound to.
@@ -216,8 +219,12 @@ const OPENAR_STATEMENT_VERSION = '1.0';
  * the time. Nothing was recording it, so this is 1.0: the Terms as they stand
  * on the membership form today. Bump it whenever that text changes, and never
  * reuse a number, because existing records point at it.
+ *
+ * 1.1 (2026-08-25): the badge paragraph in Calling Yourself a Member now says
+ * the numbered badge is issued with the welcome email, replacing the promise
+ * that images may come later.
  */
-const OPENAR_TERMS_VERSION = '1.0';
+const OPENAR_TERMS_VERSION = '1.1';
 
 function openar_form_config(string $formName): ?array {
   return OPENAR_FORMS[$formName] ?? NULL;
