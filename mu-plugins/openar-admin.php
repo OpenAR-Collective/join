@@ -2,7 +2,7 @@
 /**
  * Plugin Name: OpenAR onboarding admin
  * Description: A screen for the parts of onboarding that CiviCRM cannot show, chiefly unconfirmed applications.
- * Version:     1.2.0
+ * Version:     1.2.1
  * License:     Apache-2.0
  *
  * CiviCRM's own Submissions screen lists form submissions, but for an
@@ -2172,9 +2172,13 @@ function openar_admin_supporter_badge_candidates(): array {
     'where' => [['id', 'IN', $ids]],
     'checkPermissions' => FALSE,
   ]) as $c) {
+    // Marked only when a badge name is set. Most organizations have none, and
+    // a suffix that appears on every row says nothing about any of them.
     $label = (string) ($c['organization_name'] ?: $c['display_name']);
     $badgeName = trim((string) ($c['MissionSupporter.badge_name'] ?? ''));
-    $label .= $badgeName !== '' ? " - badge name: {$badgeName}" : ' - plain badge';
+    if ($badgeName !== '') {
+      $label .= " - badge name: {$badgeName}";
+    }
     $out[] = ['id' => (int) $c['id'], 'label' => $label];
   }
 
