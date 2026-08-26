@@ -2,7 +2,7 @@
 /**
  * Plugin Name: OpenAR Collective onboarding
  * Description: Confirmation links, review queues, and publication for membership and Mission Supporter signups.
- * Version:     1.4.0
+ * Version:     1.5.0
  * License:     Apache-2.0
  *
  * Deployed as a must-use plugin at wp-content/mu-plugins/openar-onboarding.php,
@@ -1038,8 +1038,7 @@ function openar_notify_supporter_reviewers(int $contactId, array $duplicates = [
 function openar_publish_supporter(int $contactId): void {
   $org = \Civi\Api4\Contact::get(FALSE)
     ->addSelect('id', 'display_name', 'organization_name', 'contact_type',
-      'MissionSupporter.signer_email', 'MissionSupporter.signer_name', 'MissionSupporter.trade_name',
-      'MissionSupporter.badge_name')
+      'MissionSupporter.signer_email', 'MissionSupporter.signer_name', 'MissionSupporter.trade_name')
     ->addWhere('id', '=', $contactId)
     ->execute()->first();
 
@@ -1080,17 +1079,20 @@ function openar_publish_supporter(int $contactId): void {
     return;
   }
 
-  // An organization with a badge name on its record gets its badge drawn with
-  // that name in the hexagon; everyone else gets the static file. Either kind
-  // of failure downgrades the email rather than blocking the listing, and the
-  // template only mentions an attachment when one is really there.
-  $badgeName = trim((string) ($org['MissionSupporter.badge_name'] ?? ''));
-  $named = ($badgeName !== '' && function_exists('openar_supporter_badge_named_attachment'))
-    ? openar_supporter_badge_named_attachment($badgeName)
+  // The badge is drawn with the name the roster shows, the trade name if one
+  // is set and the legal name otherwise. A name too long to draw legibly
+  // falls back to the plain badge, which is expected for some legal names
+  // rather than an error. Either kind of failure downgrades the email rather
+  // than blocking the listing, and the template only mentions an attachment
+  // when one is really there.
+  $rosterName = trim((string) ($org['MissionSupporter.trade_name'] ?? ''))
+    ?: (string) $org['organization_name'];
+  $named = function_exists('openar_supporter_badge_named_attachment')
+    ? openar_supporter_badge_named_attachment($rosterName)
     : NULL;
-  if ($badgeName !== '' && !$named) {
-    \Civi::log()->warning('OpenAR onboarding: supporter {cid} badge name "{name}" could not be '
-      . 'drawn, so the plain badge was sent instead', ['cid' => $contactId, 'name' => $badgeName]);
+  if (!$named) {
+    \Civi::log()->info('OpenAR onboarding: supporter {cid} gets the plain badge; '
+      . '"{name}" was not drawn', ['cid' => $contactId, 'name' => $rosterName]);
   }
 
   $badge = $named ?: (function_exists('openar_supporter_badge_attachment')
@@ -1111,8 +1113,7 @@ function openar_publish_supporter(int $contactId): void {
     'tokenContext' => ['contactId' => $contactId],
     'tplParams' => [
       'firstName' => openar_first_name($org['MissionSupporter.signer_name'] ?? ''),
-      'organizationName' => trim((string) ($org['MissionSupporter.trade_name'] ?? ''))
-        ?: (string) $org['organization_name'],
+      'organizationName' => $rosterName,
       'badgeAttached' => (bool) $badge,
     ],
     'attachments' => $badge ? [$badge] : [],

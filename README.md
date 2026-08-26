@@ -130,13 +130,13 @@ lost theirs: pick the member, and Email sends a fresh copy to the address on
 file while Download saves the same image locally. The badge is a pure function
 of the member number, so there is no stored image to manage or go stale.
 
-A Mission Supporter can ask for its organization name drawn in the badge's
-hexagon. Fill in **Badge name** on the organization's CiviCRM record (empty
-means the plain badge), and the **Send a supporter badge** section on the
-Tools screen emails or downloads the result; Download is the way to check how
-a name fits before sending. Names wrap onto two lines at a space when that
-lets the type render larger, and a name too long to draw legibly is refused
-rather than shrunk into illegibility.
+A Mission Supporter's badge is drawn with the name the roster shows, the
+trade name if one is set and the legal name otherwise. Names wrap onto two
+lines at a space when that lets the type render larger, and a name too long
+to draw legibly gets the plain badge rather than one shrunk into
+illegibility. The **Send a supporter badge** section on the Tools screen
+emails a fresh copy to the signer or downloads it locally, and its list says
+which organizations fall back to the plain badge.
 
 ## CiviCRM belongs in wp-admin
 

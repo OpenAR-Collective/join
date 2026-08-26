@@ -2,7 +2,7 @@
 /**
  * Plugin Name: OpenAR onboarding admin
  * Description: A screen for the parts of onboarding that CiviCRM cannot show, chiefly unconfirmed applications.
- * Version:     1.2.1
+ * Version:     1.3.0
  * License:     Apache-2.0
  *
  * CiviCRM's own Submissions screen lists form submissions, but for an
@@ -1019,13 +1019,11 @@ function openar_admin_page(): void {
     <h2 style="margin-top:2em">Send a supporter badge</h2>
     <p class="description" style="max-width:60em">
       The listing email already carries the badge, so this is for an
-      organization that has lost theirs or asks for a fresh copy. When a badge
-      name is set on the organization's record, the badge is drawn with that
-      name in the hexagon; otherwise it is the plain badge every supporter
-      gets. To put a name in the hexagon, open the record in CiviCRM and fill
-      in <strong>Badge name</strong> under Mission Supporter, then send from
-      here. Email goes to the signer's address on file; Download saves the
-      same image here, which is the way to check how a name fits.
+      organization that has lost theirs or asks for a fresh copy. The badge is
+      drawn with the name the roster shows, the trade name if one is set and
+      the legal name otherwise; a name too long to draw legibly gets the plain
+      badge instead, and the list below says when that is the case. Email goes
+      to the signer's address on file; Download saves the same image here.
     </p>
 
     <?php $sBadgeProblem = function_exists('openar_supporter_badge_problem') ? openar_supporter_badge_problem() : 'The badges plugin is not loaded.'; ?>
@@ -2168,16 +2166,17 @@ function openar_admin_supporter_badge_candidates(): array {
 
   $out = [];
   foreach (civicrm_api4('Contact', 'get', [
-    'select' => ['id', 'display_name', 'organization_name', 'MissionSupporter.badge_name'],
+    'select' => ['id', 'display_name', 'organization_name', 'MissionSupporter.trade_name'],
     'where' => [['id', 'IN', $ids]],
     'checkPermissions' => FALSE,
   ]) as $c) {
-    // Marked only when a badge name is set. Most organizations have none, and
-    // a suffix that appears on every row says nothing about any of them.
-    $label = (string) ($c['organization_name'] ?: $c['display_name']);
-    $badgeName = trim((string) ($c['MissionSupporter.badge_name'] ?? ''));
-    if ($badgeName !== '') {
-      $label .= " - badge name: {$badgeName}";
+    // The label is the name the badge will carry, so the choice shows what
+    // will be drawn. Marked only for the exception: a name too long to draw,
+    // which gets the plain badge instead.
+    $label = openar_admin_supporter_badge_name($c);
+    if (function_exists('openar_supporter_badge_layout')
+      && openar_supporter_badge_layout($label) === NULL) {
+      $label .= ' - too long to draw; gets the plain badge';
     }
     $out[] = ['id' => (int) $c['id'], 'label' => $label];
   }
@@ -2189,33 +2188,38 @@ function openar_admin_supporter_badge_candidates(): array {
 }
 
 /**
+ * The name an organization's badge is drawn with: the name the roster shows,
+ * the trade name if one is set and the legal name otherwise. Nothing is
+ * stored; what the roster says is what the badge says.
+ */
+function openar_admin_supporter_badge_name(array $org): string {
+  return trim((string) ($org['MissionSupporter.trade_name'] ?? ''))
+    ?: (string) (($org['organization_name'] ?? '') ?: ($org['display_name'] ?? ''));
+}
+
+/**
  * The attachment one organization's badge send should carry, or an error
  * sentence.
  *
  * Shared by the email and download paths so the two can never disagree about
  * which badge an organization gets. The named badge is a temporary file the
  * caller unlinks; the plain badge is the static asset and must be left alone.
- * 'temp' says which kind came back, and is stripped before mailing.
+ * 'temp' says which kind came back, 'drawn' carries the name when one was
+ * drawn, and both are stripped before mailing.
  *
  * @return array|string The attachment array, or the error as a sentence.
  */
 function openar_admin_supporter_badge_for(array $org) {
-  $badgeName = trim((string) ($org['MissionSupporter.badge_name'] ?? ''));
+  $name = openar_admin_supporter_badge_name($org);
 
-  if ($badgeName !== '') {
-    $problem = openar_supporter_badge_problem();
-    if ($problem !== '') {
-      return $problem;
+  // A name too long to draw legibly gets the plain badge, the expected
+  // outcome for some legal names rather than an error worth refusing over.
+  if ($name !== '' && openar_supporter_badge_problem() === ''
+    && openar_supporter_badge_layout($name) !== NULL) {
+    $badge = openar_supporter_badge_named_attachment($name);
+    if ($badge) {
+      return $badge + ['temp' => TRUE, 'drawn' => $name];
     }
-    if (openar_supporter_badge_layout($badgeName) === NULL) {
-      return "The badge name \"{$badgeName}\" is too long to draw legibly. "
-        . 'Shorten it on the record in CiviCRM, or clear it to send the plain badge.';
-    }
-    $badge = openar_supporter_badge_named_attachment($badgeName);
-    if (!$badge) {
-      return 'The badge image could not be drawn. Check the PHP error log.';
-    }
-    return $badge + ['temp' => TRUE];
   }
 
   $badge = openar_supporter_badge_attachment();
@@ -2239,7 +2243,7 @@ function openar_admin_send_supporter_badge(int $contactId): string {
   $org = civicrm_api4('Contact', 'get', [
     'select' => ['id', 'display_name', 'organization_name', 'contact_type',
       'MissionSupporter.signer_name', 'MissionSupporter.signer_email',
-      'MissionSupporter.trade_name', 'MissionSupporter.badge_name'],
+      'MissionSupporter.trade_name'],
     'where' => [['id', '=', $contactId]],
     'checkPermissions' => FALSE,
   ])->first();
@@ -2273,7 +2277,8 @@ function openar_admin_send_supporter_badge(int $contactId): string {
     return $badge;
   }
   $temp = !empty($badge['temp']);
-  unset($badge['temp']);
+  $drawn = (string) ($badge['drawn'] ?? '');
+  unset($badge['temp'], $badge['drawn']);
 
   [$fromName, $fromEmail] = CRM_Core_BAO_Domain::getNameAndEmail();
 
@@ -2287,7 +2292,7 @@ function openar_admin_send_supporter_badge(int $contactId): string {
       'firstName' => function_exists('openar_first_name')
         ? openar_first_name($org['MissionSupporter.signer_name'] ?? '')
         : trim((string) strtok((string) ($org['MissionSupporter.signer_name'] ?? ''), ' ')),
-      'organizationName' => trim((string) ($org['MissionSupporter.trade_name'] ?? '')) ?: $name,
+      'organizationName' => openar_admin_supporter_badge_name($org),
     ],
     'attachments' => [$badge],
   ]);
@@ -2296,7 +2301,9 @@ function openar_admin_send_supporter_badge(int $contactId): string {
     @unlink($badge['fullPath']);
   }
 
-  return sprintf('Sent the Mission Supporter badge to %s at %s.', $name, $email);
+  return $drawn !== ''
+    ? sprintf('Sent the Mission Supporter badge, drawn with "%s", to %s.', $drawn, $email)
+    : sprintf('Sent the plain Mission Supporter badge to %s; the name is too long to draw legibly.', $email);
 }
 
 /**
@@ -2322,7 +2329,7 @@ function openar_admin_supporter_badge_download(): void {
   civi_wp()->initialize();
   $contactId = (int) $_POST['openar_supporter_badge_contact'];
   $org = civicrm_api4('Contact', 'get', [
-    'select' => ['id', 'display_name', 'organization_name', 'contact_type', 'MissionSupporter.badge_name'],
+    'select' => ['id', 'display_name', 'organization_name', 'contact_type', 'MissionSupporter.trade_name'],
     'where' => [['id', '=', $contactId]],
     'checkPermissions' => FALSE,
   ])->first();
