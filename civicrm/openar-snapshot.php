@@ -182,6 +182,19 @@ if (!function_exists('openar_snapshot')) {
       }
     }
 
+    // WordPress page content. The landing page's copy took decisions to write
+    // and lives nowhere but the database: it is not in the repository, and a
+    // stray edit or search-replace rewrites it with no record. One file per
+    // published page, named by slug.
+    if (function_exists('get_posts')) {
+      foreach (get_posts(['post_type' => 'page', 'post_status' => 'publish',
+        'numberposts' => -1, 'orderby' => 'name', 'order' => 'ASC']) as $p) {
+        file_put_contents("{$base}/wp-page-{$p->post_name}.html",
+          "<!-- {$p->post_title} -->\n" . $p->post_content . "\n");
+        $wrote[] = "page {$p->post_name}";
+      }
+    }
+
     // Settings, with credentials stripped. mailing_backend holds the delivery
     // mode and the SMTP credentials in one array, so a careless write to it
     // destroys the mail configuration. That happened. The shape is worth
