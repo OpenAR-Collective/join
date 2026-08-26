@@ -2,7 +2,7 @@
 /**
  * Plugin Name: OpenAR badges
  * Description: Draws the numbered member badge and the named Mission Supporter badge, and locates the badge art the onboarding emails attach.
- * Version:     1.1.0
+ * Version:     1.2.0
  * License:     Apache-2.0
  *
  * The member badge is the blank 1024px badge with the member number drawn over
@@ -234,6 +234,10 @@ function openar_supporter_badge_problem(): string {
  * the organization's own word breaks are respected; a name with no spaces is
  * never broken.
  *
+ * Three lines exist only as a rescue: they are tried when nothing reaches
+ * the floor on one or two, so a name that renders today keeps its exact
+ * layout and the extra line changes only what would otherwise be refused.
+ *
  * Sizes below the floor are refused outright: a badge nobody can read is
  * worse than a conversation about shortening the name.
  *
@@ -258,6 +262,10 @@ function openar_supporter_badge_layout(string $name): ?array {
   $inset = 20.0;
   $capSingle = 0.44 * 2.0 * $h;
   $capBlock = 0.68 * 2.0 * $h;
+  // The rescue tier reaches deeper into the hexagon's points, which works
+  // because its outer lines are short by construction: a long line at that
+  // height fails the taper check and the candidate falls away.
+  $capBlock3 = 0.80 * 2.0 * $h;
   $gapFrac = 0.24;
   $floor = 30;
 
@@ -268,12 +276,22 @@ function openar_supporter_badge_layout(string $name): ?array {
   }
 
   $words = explode(' ', $name);
-  $candidates = [[$name]];
+  $primary = [[$name]];
   for ($i = 1; $i < count($words); $i++) {
-    $candidates[] = [
+    $primary[] = [
       implode(' ', array_slice($words, 0, $i)),
       implode(' ', array_slice($words, $i)),
     ];
+  }
+  $rescue = [];
+  for ($i = 1; $i < count($words) - 1; $i++) {
+    for ($j = $i + 1; $j < count($words); $j++) {
+      $rescue[] = [
+        implode(' ', array_slice($words, 0, $i)),
+        implode(' ', array_slice($words, $i, $j - $i)),
+        implode(' ', array_slice($words, $j)),
+      ];
+    }
   }
 
   $measure = function (string $text, float $pts) use ($font): ?array {
@@ -289,50 +307,55 @@ function openar_supporter_badge_layout(string $name): ?array {
   };
 
   $best = NULL;
-  foreach ($candidates as $lines) {
-    for ($pts = 240; $pts >= $floor; $pts -= 2) {
-      $boxes = [];
-      foreach ($lines as $line) {
-        $boxes[] = $measure($line, (float) $pts);
-      }
-      if (in_array(NULL, $boxes, TRUE)) {
-        break;
-      }
-
-      $gap = count($lines) > 1 ? $gapFrac * $pts : 0.0;
-      $blockH = array_sum(array_column($boxes, 'h')) + $gap * (count($lines) - 1);
-      $cap = count($lines) === 1 ? $capSingle : $capBlock;
-      if ($blockH > $cap || $blockH / 2.0 > $h - $inset) {
-        continue;
-      }
-
-      // Stack the ink boxes, centered on the hexagon's center, each line
-      // checked against the slanted sides at whichever of its own edges sits
-      // farther from the center line.
-      $placed = [];
-      $y = -$blockH / 2.0;
-      $fits = TRUE;
-      foreach ($lines as $i => $line) {
-        $b = $boxes[$i];
-        $edge = max(abs($y), abs($y + $b['h']));
-        $avail = $r * (1.0 - $edge / (2.0 * $h)) - $inset;
-        if ($b['w'] / 2.0 > $avail) {
-          $fits = FALSE;
+  foreach ([$primary, $rescue] as $tier) {
+    if ($best) {
+      break;
+    }
+    foreach ($tier as $lines) {
+      for ($pts = 240; $pts >= $floor; $pts -= 2) {
+        $boxes = [];
+        foreach ($lines as $line) {
+          $boxes[] = $measure($line, (float) $pts);
+        }
+        if (in_array(NULL, $boxes, TRUE)) {
           break;
         }
-        $placed[] = [
-          $line,
-          (int) round($cx - $b['w'] / 2.0 - $b['l']),
-          (int) round($cy + $y - $b['t']),
-        ];
-        $y += $b['h'] + $gap;
-      }
 
-      if ($fits) {
-        if (!$best || $pts > $best['size']) {
-          $best = ['size' => $pts, 'lines' => $placed];
+        $gap = count($lines) > 1 ? $gapFrac * $pts : 0.0;
+        $blockH = array_sum(array_column($boxes, 'h')) + $gap * (count($lines) - 1);
+        $cap = [1 => $capSingle, 2 => $capBlock, 3 => $capBlock3][count($lines)];
+        if ($blockH > $cap || $blockH / 2.0 > $h - $inset) {
+          continue;
         }
-        break;
+
+        // Stack the ink boxes, centered on the hexagon's center, each line
+        // checked against the slanted sides at whichever of its own edges
+        // sits farther from the center line.
+        $placed = [];
+        $y = -$blockH / 2.0;
+        $fits = TRUE;
+        foreach ($lines as $i => $line) {
+          $b = $boxes[$i];
+          $edge = max(abs($y), abs($y + $b['h']));
+          $avail = $r * (1.0 - $edge / (2.0 * $h)) - $inset;
+          if ($b['w'] / 2.0 > $avail) {
+            $fits = FALSE;
+            break;
+          }
+          $placed[] = [
+            $line,
+            (int) round($cx - $b['w'] / 2.0 - $b['l']),
+            (int) round($cy + $y - $b['t']),
+          ];
+          $y += $b['h'] + $gap;
+        }
+
+        if ($fits) {
+          if (!$best || $pts > $best['size']) {
+            $best = ['size' => $pts, 'lines' => $placed];
+          }
+          break;
+        }
       }
     }
   }
