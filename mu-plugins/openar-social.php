@@ -5,7 +5,7 @@
  *              or social network reads when somebody pastes a link, and stops
  *              WordPress advertising an oEmbed endpoint that describes the
  *              wrong page.
- * Version:     1.0.0
+ * Version:     1.0.1
  * Author:      The OpenAR Collective
  *
  * Pasting https://join.openarcollective.org/sign/ produced a preview reading
@@ -37,7 +37,7 @@ const OPENAR_SOCIAL = [
   ],
   'sign' => [
     'title' => 'Become a Mission Supporter | The OpenAR Collective',
-    'description' => "Organizations can state publicly that they support the Foundation's mission. Signing costs nothing and is not available for purchase at any price.",
+    'description' => "Organizations can state publicly that they support the Foundation's mission. Signing costs nothing.",
   ],
 ];
 
