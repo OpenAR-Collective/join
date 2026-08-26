@@ -2,7 +2,7 @@
 /**
  * Plugin Name: OpenAR Collective onboarding
  * Description: Confirmation links, review queues, and publication for membership and Mission Supporter signups.
- * Version:     1.3.1
+ * Version:     1.4.0
  * License:     Apache-2.0
  *
  * Deployed as a must-use plugin at wp-content/mu-plugins/openar-onboarding.php,
@@ -1038,7 +1038,8 @@ function openar_notify_supporter_reviewers(int $contactId, array $duplicates = [
 function openar_publish_supporter(int $contactId): void {
   $org = \Civi\Api4\Contact::get(FALSE)
     ->addSelect('id', 'display_name', 'organization_name', 'contact_type',
-      'MissionSupporter.signer_email', 'MissionSupporter.signer_name', 'MissionSupporter.trade_name')
+      'MissionSupporter.signer_email', 'MissionSupporter.signer_name', 'MissionSupporter.trade_name',
+      'MissionSupporter.badge_name')
     ->addWhere('id', '=', $contactId)
     ->execute()->first();
 
@@ -1079,12 +1080,22 @@ function openar_publish_supporter(int $contactId): void {
     return;
   }
 
-  // A static file, the same for every organization, so a missing badge means a
-  // missing asset. It downgrades the email rather than blocking the listing,
-  // and the template only mentions an attachment when one is really there.
-  $badge = function_exists('openar_supporter_badge_attachment')
-    ? openar_supporter_badge_attachment()
+  // An organization with a badge name on its record gets its badge drawn with
+  // that name in the hexagon; everyone else gets the static file. Either kind
+  // of failure downgrades the email rather than blocking the listing, and the
+  // template only mentions an attachment when one is really there.
+  $badgeName = trim((string) ($org['MissionSupporter.badge_name'] ?? ''));
+  $named = ($badgeName !== '' && function_exists('openar_supporter_badge_named_attachment'))
+    ? openar_supporter_badge_named_attachment($badgeName)
     : NULL;
+  if ($badgeName !== '' && !$named) {
+    \Civi::log()->warning('OpenAR onboarding: supporter {cid} badge name "{name}" could not be '
+      . 'drawn, so the plain badge was sent instead', ['cid' => $contactId, 'name' => $badgeName]);
+  }
+
+  $badge = $named ?: (function_exists('openar_supporter_badge_attachment')
+    ? openar_supporter_badge_attachment()
+    : NULL);
   if (!$badge) {
     \Civi::log()->warning('OpenAR onboarding: supporter {cid} told without a badge; '
       . 'openar-assets/openar-mission-supporter-badge-512.png is not readable', ['cid' => $contactId]);
@@ -1106,6 +1117,11 @@ function openar_publish_supporter(int $contactId): void {
     ],
     'attachments' => $badge ? [$badge] : [],
   ]);
+
+  // Only the drawn badge is temporary; the static file stays where it is.
+  if ($named) {
+    @unlink($named['fullPath']);
+  }
 
   \Civi\Api4\Activity::create(FALSE)
     ->addValue('activity_type_id:name', 'Email')

@@ -160,6 +160,20 @@ $fields = [
     'is_searchable' => FALSE,
     'weight' => 25,
   ],
+  [
+    // Optional. When set, the organization's badge is drawn with this name in
+    // the center hexagon; empty means the plain badge everyone else gets.
+    // Kept apart from trade_name because a name on the badge is something the
+    // organization asks for, not something to infer from the roster listing.
+    'name' => 'badge_name',
+    'label' => 'Badge name (drawn in the badge hexagon; leave empty for the plain badge)',
+    'data_type' => 'String',
+    'html_type' => 'Text',
+    'is_required' => FALSE,
+    'is_searchable' => FALSE,
+    'text_length' => 64,
+    'weight' => 26,
+  ],
 ];
 
 foreach ($fields as $f) {

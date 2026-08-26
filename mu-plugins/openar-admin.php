@@ -2,7 +2,7 @@
 /**
  * Plugin Name: OpenAR onboarding admin
  * Description: A screen for the parts of onboarding that CiviCRM cannot show, chiefly unconfirmed applications.
- * Version:     1.1.0
+ * Version:     1.2.0
  * License:     Apache-2.0
  *
  * CiviCRM's own Submissions screen lists form submissions, but for an
@@ -35,6 +35,7 @@ const OPENAR_ADMIN_CAP = 'manage_options';
 add_action('admin_menu', 'openar_admin_menu');
 add_action('wp_dashboard_setup', 'openar_admin_dashboard_widget');
 add_action('admin_init', 'openar_admin_badge_download');
+add_action('admin_init', 'openar_admin_supporter_badge_download');
 
 function openar_admin_menu(): void {
   add_management_page(
@@ -460,6 +461,26 @@ function openar_admin_page(): void {
     }
     else {
       $result = openar_admin_send_badge($cid);
+      if (str_starts_with($result, 'Sent')) {
+        $notice = $result;
+      }
+      else {
+        $error = $result;
+      }
+    }
+  }
+
+  // The supporter twin of the member badge email above, with the same shape
+  // and the same reasoning. Its download variant is likewise intercepted at
+  // admin_init before any HTML is out the door.
+  if (($_POST['openar_supporter_badge_action'] ?? '') === 'email' && !empty($_POST['openar_supporter_badge_contact'])) {
+    $cid = (int) $_POST['openar_supporter_badge_contact'];
+
+    if (!isset($_POST['_wpnonce']) || !wp_verify_nonce(sanitize_key($_POST['_wpnonce']), 'openar_send_supporter_badge')) {
+      $error = 'That request could not be verified. Please try again.';
+    }
+    else {
+      $result = openar_admin_send_supporter_badge($cid);
       if (str_starts_with($result, 'Sent')) {
         $notice = $result;
       }
@@ -991,6 +1012,42 @@ function openar_admin_page(): void {
           </select>
           <button type="submit" name="openar_badge_action" value="email" class="button">Email their badge</button>
           <button type="submit" name="openar_badge_action" value="download" class="button">Download it</button>
+        </p>
+      </form>
+    <?php endif; ?>
+
+    <h2 style="margin-top:2em">Send a supporter badge</h2>
+    <p class="description" style="max-width:60em">
+      The listing email already carries the badge, so this is for an
+      organization that has lost theirs or asks for a fresh copy. When a badge
+      name is set on the organization's record, the badge is drawn with that
+      name in the hexagon; otherwise it is the plain badge every supporter
+      gets. To put a name in the hexagon, open the record in CiviCRM and fill
+      in <strong>Badge name</strong> under Mission Supporter, then send from
+      here. Email goes to the signer's address on file; Download saves the
+      same image here, which is the way to check how a name fits.
+    </p>
+
+    <?php $sBadgeProblem = function_exists('openar_supporter_badge_problem') ? openar_supporter_badge_problem() : 'The badges plugin is not loaded.'; ?>
+    <?php $sBadgeOrgs = $sBadgeProblem === '' ? openar_admin_supporter_badge_candidates() : []; ?>
+    <?php if ($sBadgeProblem !== '') : ?>
+      <p class="description"><strong>Badges cannot be drawn.</strong> <?php echo esc_html($sBadgeProblem); ?></p>
+    <?php elseif (!$sBadgeOrgs) : ?>
+      <p class="description">There are no published Mission Supporters to send to.</p>
+    <?php else : ?>
+      <form method="post" action="<?php echo esc_url(admin_url('tools.php?page=' . OPENAR_ADMIN_SLUG)); ?>" class="card" style="max-width:60em;padding:16px 20px;margin:14px 0">
+        <?php wp_nonce_field('openar_send_supporter_badge'); ?>
+
+        <label for="openar_supporter_badge_contact"><strong>Which organization</strong></label>
+        <p style="margin:6px 0 0;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <select name="openar_supporter_badge_contact" id="openar_supporter_badge_contact" style="min-width:28em" required>
+            <option value="">Choose an organization</option>
+            <?php foreach ($sBadgeOrgs as $orgRow) : ?>
+              <option value="<?php echo (int) $orgRow['id']; ?>"><?php echo esc_html($orgRow['label']); ?></option>
+            <?php endforeach; ?>
+          </select>
+          <button type="submit" name="openar_supporter_badge_action" value="email" class="button">Email their badge</button>
+          <button type="submit" name="openar_supporter_badge_action" value="download" class="button">Download it</button>
         </p>
       </form>
     <?php endif; ?>
@@ -2076,5 +2133,213 @@ function openar_admin_badge_download(): void {
   header('Content-Length: ' . (string) filesize($path));
   readfile($path);
   @unlink($path);
+  exit;
+}
+
+/**
+ * Every organization that has a badge to send: the published supporters.
+ *
+ * The label carries the badge name when one is set, so the choice shows what
+ * will actually be drawn before anything is sent.
+ */
+function openar_admin_supporter_badge_candidates(): array {
+  if (!function_exists('civi_wp')) {
+    return [];
+  }
+  civi_wp()->initialize();
+
+  $gid = openar_admin_group_id(OPENAR_SUPPORTERS_PUBLISHED_GROUP);
+  if (!$gid) {
+    return [];
+  }
+
+  $ids = [];
+  foreach (civicrm_api4('GroupContact', 'get', [
+    'select' => ['contact_id'],
+    'where' => [['group_id', '=', $gid], ['status', '=', 'Added'],
+                ['contact_id.is_deleted', '=', FALSE]],
+    'checkPermissions' => FALSE,
+  ]) as $r) {
+    $ids[] = (int) $r['contact_id'];
+  }
+  if (!$ids) {
+    return [];
+  }
+
+  $out = [];
+  foreach (civicrm_api4('Contact', 'get', [
+    'select' => ['id', 'display_name', 'organization_name', 'MissionSupporter.badge_name'],
+    'where' => [['id', 'IN', $ids]],
+    'checkPermissions' => FALSE,
+  ]) as $c) {
+    $label = (string) ($c['organization_name'] ?: $c['display_name']);
+    $badgeName = trim((string) ($c['MissionSupporter.badge_name'] ?? ''));
+    $label .= $badgeName !== '' ? " - badge name: {$badgeName}" : ' - plain badge';
+    $out[] = ['id' => (int) $c['id'], 'label' => $label];
+  }
+
+  // Sorted on the label for the same reason the revocation list is.
+  usort($out, fn($a, $b) => strnatcasecmp($a['label'], $b['label']));
+
+  return $out;
+}
+
+/**
+ * The attachment one organization's badge send should carry, or an error
+ * sentence.
+ *
+ * Shared by the email and download paths so the two can never disagree about
+ * which badge an organization gets. The named badge is a temporary file the
+ * caller unlinks; the plain badge is the static asset and must be left alone.
+ * 'temp' says which kind came back, and is stripped before mailing.
+ *
+ * @return array|string The attachment array, or the error as a sentence.
+ */
+function openar_admin_supporter_badge_for(array $org) {
+  $badgeName = trim((string) ($org['MissionSupporter.badge_name'] ?? ''));
+
+  if ($badgeName !== '') {
+    $problem = openar_supporter_badge_problem();
+    if ($problem !== '') {
+      return $problem;
+    }
+    if (openar_supporter_badge_layout($badgeName) === NULL) {
+      return "The badge name \"{$badgeName}\" is too long to draw legibly. "
+        . 'Shorten it on the record in CiviCRM, or clear it to send the plain badge.';
+    }
+    $badge = openar_supporter_badge_named_attachment($badgeName);
+    if (!$badge) {
+      return 'The badge image could not be drawn. Check the PHP error log.';
+    }
+    return $badge + ['temp' => TRUE];
+  }
+
+  $badge = openar_supporter_badge_attachment();
+  if (!$badge) {
+    return 'The plain supporter badge (openar-assets/openar-mission-supporter-badge-512.png) is missing.';
+  }
+  return $badge + ['temp' => FALSE];
+}
+
+/**
+ * Email one organization its Mission Supporter badge.
+ *
+ * @return string A sentence for the screen. Anything not starting "Sent" is an error.
+ */
+function openar_admin_send_supporter_badge(int $contactId): string {
+  if (!function_exists('openar_supporter_badge_attachment')) {
+    return 'The badges plugin is not loaded, so no badge could be sent.';
+  }
+  civi_wp()->initialize();
+
+  $org = civicrm_api4('Contact', 'get', [
+    'select' => ['id', 'display_name', 'organization_name', 'contact_type',
+      'MissionSupporter.signer_name', 'MissionSupporter.signer_email',
+      'MissionSupporter.trade_name', 'MissionSupporter.badge_name'],
+    'where' => [['id', '=', $contactId]],
+    'checkPermissions' => FALSE,
+  ])->first();
+
+  if (!$org || $org['contact_type'] !== 'Organization') {
+    return "Contact #{$contactId} is not an organization on file.";
+  }
+  $name = (string) ($org['organization_name'] ?: $org['display_name']);
+
+  if (!function_exists('openar_in_group') || !openar_in_group($contactId, OPENAR_SUPPORTERS_PUBLISHED_GROUP)) {
+    return "{$name} is not on the published roster, so no badge was sent.";
+  }
+
+  $email = trim((string) ($org['MissionSupporter.signer_email'] ?? ''));
+  if ($email === '') {
+    return "{$name} has no signer email address on file.";
+  }
+
+  $template = civicrm_api4('MessageTemplate', 'get', [
+    'select' => ['id'],
+    'where' => [['msg_title', '=', 'OpenAR - Your Mission Supporter badge'], ['is_active', '=', TRUE]],
+    'checkPermissions' => FALSE,
+  ])->first();
+
+  if (!$template) {
+    return 'The supporter badge template is missing. Run supporter-badge-template.php.';
+  }
+
+  $badge = openar_admin_supporter_badge_for($org);
+  if (is_string($badge)) {
+    return $badge;
+  }
+  $temp = !empty($badge['temp']);
+  unset($badge['temp']);
+
+  [$fromName, $fromEmail] = CRM_Core_BAO_Domain::getNameAndEmail();
+
+  CRM_Core_BAO_MessageTemplate::sendTemplate([
+    'messageTemplateID' => $template['id'],
+    'from' => sprintf('%s <%s>', $fromName, $fromEmail),
+    'toEmail' => $email,
+    'contactId' => $contactId,
+    'tokenContext' => ['contactId' => $contactId],
+    'tplParams' => [
+      'firstName' => function_exists('openar_first_name')
+        ? openar_first_name($org['MissionSupporter.signer_name'] ?? '')
+        : trim((string) strtok((string) ($org['MissionSupporter.signer_name'] ?? ''), ' ')),
+      'organizationName' => trim((string) ($org['MissionSupporter.trade_name'] ?? '')) ?: $name,
+    ],
+    'attachments' => [$badge],
+  ]);
+
+  if ($temp) {
+    @unlink($badge['fullPath']);
+  }
+
+  return sprintf('Sent the Mission Supporter badge to %s at %s.', $name, $email);
+}
+
+/**
+ * Stream one organization's supporter badge to the browser as a download.
+ *
+ * The supporter twin of openar_admin_badge_download() above, and the way to
+ * check how a badge name fits before emailing anything.
+ */
+function openar_admin_supporter_badge_download(): void {
+  if (($_POST['openar_supporter_badge_action'] ?? '') !== 'download' || empty($_POST['openar_supporter_badge_contact'])) {
+    return;
+  }
+  if (!current_user_can(OPENAR_ADMIN_CAP)) {
+    return;
+  }
+  check_admin_referer('openar_send_supporter_badge');
+
+  if (!function_exists('openar_supporter_badge_attachment') || !function_exists('civi_wp')) {
+    wp_die('The badges plugin is not loaded, so no badge could be drawn.',
+      '', ['back_link' => TRUE]);
+  }
+
+  civi_wp()->initialize();
+  $contactId = (int) $_POST['openar_supporter_badge_contact'];
+  $org = civicrm_api4('Contact', 'get', [
+    'select' => ['id', 'display_name', 'organization_name', 'contact_type', 'MissionSupporter.badge_name'],
+    'where' => [['id', '=', $contactId]],
+    'checkPermissions' => FALSE,
+  ])->first();
+
+  if (!$org || $org['contact_type'] !== 'Organization') {
+    wp_die('That contact is not an organization on file.', '', ['back_link' => TRUE]);
+  }
+
+  $badge = openar_admin_supporter_badge_for($org);
+  if (is_string($badge)) {
+    wp_die(esc_html($badge), '', ['back_link' => TRUE]);
+  }
+  $temp = !empty($badge['temp']);
+
+  nocache_headers();
+  header('Content-Type: image/png');
+  header('Content-Disposition: attachment; filename="openar-mission-supporter-badge.png"');
+  header('Content-Length: ' . (string) filesize($badge['fullPath']));
+  readfile($badge['fullPath']);
+  if ($temp) {
+    @unlink($badge['fullPath']);
+  }
   exit;
 }
