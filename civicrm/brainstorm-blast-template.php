@@ -53,6 +53,8 @@ $html = <<<'HTML'
 
 <p>Membership is free and takes about two minutes to request at <a href="https://openarcollective.org/join">openarcollective.org/join</a>. Applications are reviewed by a person, usually within a few days. Join this week, and you can pick up your member ribbon at our booth and show your support right on your conference nametag.</p>
 
+<p style="margin:18px 0;"><img src="https://openarcollective.org/assets/email/member-ribbon.png" alt="The OpenAR Collective Member ribbon" width="360" height="120" style="display:block;border:none;max-width:100%;height:auto;" /></p>
+
 <p><a href="https://openarcollective.org/join" style="display:inline-block;padding:12px 22px;background:#e8a020;color:#161410;font-family:Arial,Helvetica,sans-serif;font-weight:600;text-decoration:none;border-radius:3px;">Join the Collective</a></p>
 
 <p>If you would like the whole story before then, our <a href="https://openarcollective.org/brochure">brochure</a> is on our website.</p>
