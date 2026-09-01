@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: OpenAR mail streams
- * Description: Routes CiviMail bulk mailings onto the Postmark broadcast stream matching their audience, keeping transactional mail on its own.
- * Version:     1.1.0
+ * Description: Routes CiviMail bulk mailings onto the Postmark broadcast stream matching their audience, delivers them to Postmark's broadcast SMTP host, and tells Postmark never to track.
+ * Version:     1.2.0
  * License:     Apache-2.0
  *
  * Postmark separates transactional mail from bulk, and its terms require
@@ -25,6 +25,18 @@
  * outright, loudly rather than quietly. The test send of any new mailing
  * doubles as the check that header and stream agree; Postmark's Activity
  * view shows the stream per message.
+ *
+ * Two further Postmark facts this file carries the consequences of:
+ *
+ * Broadcast streams are served by a DIFFERENT SMTP HOST,
+ * smtp-broadcasts.postmarkapp.com, with the same credentials. A message
+ * carrying a broadcast stream header but delivered to the transactional host
+ * is rejected. CiviCRM has one SMTP configuration, so the mailer is wrapped:
+ * each message is delivered to the host its stream lives on.
+ *
+ * And the Foundation's privacy notice promises "we do not track our email",
+ * so every message carries headers telling Postmark not to inject open or
+ * click tracking, whatever any dashboard default may say now or later.
  */
 
 declare(strict_types=1);
@@ -48,7 +60,14 @@ const OPENAR_MAIL_STREAMS = [
  */
 const OPENAR_STREAM_DEFAULT = 'broadcast';
 
+/**
+ * Where Postmark serves broadcast streams. Broadcast mail delivered to the
+ * transactional host is rejected, and vice versa.
+ */
+const OPENAR_BROADCAST_SMTP_HOST = 'smtp-broadcasts.postmarkapp.com';
+
 add_action('civicrm_alterMailParams', 'openar_mail_stream_route', 10, 2);
+add_action('civicrm_alterMailer', 'openar_mail_stream_wrap_mailer', 10, 3);
 
 /**
  * Stamp bulk CiviMail deliveries with the stream their audience calls for.
@@ -58,14 +77,90 @@ add_action('civicrm_alterMailParams', 'openar_mail_stream_route', 10, 2);
  * one fires depends on the install, so both are treated as bulk.
  */
 function openar_mail_stream_route(&$params, $context = NULL): void {
-  if ($context !== 'civimail' && $context !== 'flexmailer') {
-    return;
-  }
   if (!is_array($params['headers'] ?? NULL)) {
     $params['headers'] = [];
   }
+
+  // Every message, bulk and transactional alike: the privacy notice says
+  // "we do not track our email", so Postmark is told so explicitly rather
+  // than trusted to default that way forever.
+  $params['headers']['X-PM-TrackOpens'] = 'false';
+  $params['headers']['X-PM-TrackLinks'] = 'None';
+
+  if ($context !== 'civimail' && $context !== 'flexmailer') {
+    return;
+  }
   $params['headers']['X-PM-Message-Stream'] =
     openar_mail_stream_for_job((int) ($params['job_id'] ?? 0));
+}
+
+/**
+ * Wrap the SMTP mailer so each message is delivered to the host its stream
+ * lives on: broadcast-stream messages to Postmark's broadcasts host, and
+ * everything else to the configured transactional host.
+ */
+function openar_mail_stream_wrap_mailer(&$mailer, $driver = NULL, $params = NULL): void {
+  if ($driver !== 'smtp' || !is_array($params)) {
+    return;
+  }
+  $mailer = new OpenAR_Stream_Splitting_Mailer($mailer, $params);
+}
+
+/**
+ * A PEAR-Mail-shaped mailer that picks the SMTP host per message.
+ *
+ * The broadcast connection is created only when a broadcast message actually
+ * arrives, with the same credentials as the configured mailer, because
+ * Postmark authenticates both hosts with the same server token.
+ */
+class OpenAR_Stream_Splitting_Mailer {
+
+  private $default;
+  private $broadcast = NULL;
+  private array $params;
+
+  public function __construct($default, array $params) {
+    $this->default = $default;
+    $this->params = $params;
+  }
+
+  private function broadcastMailer() {
+    if ($this->broadcast === NULL) {
+      $params = $this->params;
+      $params['host'] = OPENAR_BROADCAST_SMTP_HOST;
+      require_once 'Mail.php';
+      $this->broadcast = Mail::factory('smtp', $params);
+    }
+    return $this->broadcast;
+  }
+
+  public function send($recipients, $headers, $body) {
+    $stream = is_array($headers) ? (string) ($headers['X-PM-Message-Stream'] ?? '') : '';
+    $broadcastStreams = array_unique(array_merge(
+      array_values(OPENAR_MAIL_STREAMS), [OPENAR_STREAM_DEFAULT]
+    ));
+    $mailer = in_array($stream, $broadcastStreams, TRUE)
+      ? $this->broadcastMailer()
+      : $this->default;
+    return $mailer->send($recipients, $headers, $body);
+  }
+
+  /** CiviMail calls this between batches when the mailer offers it. */
+  public function disconnect() {
+    $ok = TRUE;
+    foreach ([$this->default, $this->broadcast] as $mailer) {
+      if ($mailer && is_callable([$mailer, 'disconnect'])) {
+        $ok = $mailer->disconnect() && $ok;
+      }
+    }
+    return $ok;
+  }
+
+  /** Anything else is the default mailer's business. */
+  public function __call($name, $args) {
+    return call_user_func_array([$this->default, $name], $args);
+  }
+
 }
 
 /**
