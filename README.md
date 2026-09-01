@@ -42,7 +42,7 @@ nothing, apart from credentials.
 
 | Directory | What it holds |
 |---|---|
-| `mu-plugins/` | The must-use plugins: onboarding, Discord connect, short URLs, badges, admin screen |
+| `mu-plugins/` | The must-use plugins: onboarding, Discord connect, short URLs, badges, mail streams, admin screen |
 | `mu-plugins/openar-assets/` | The badge art and font the badges plugin draws with |
 | `civicrm/` | Scripts that build the custom fields, groups, forms and email templates |
 | `wordpress/` | The join site's brand stylesheet and its installer |
