@@ -67,24 +67,22 @@ $text .= str_replace('membership@openarcollective.org', 'rob@openarcollective.or
 $html .= str_replace('membership@openarcollective.org', 'rob@openarcollective.org',
   openar_signature_html('See you at Brainstorm'));
 
-// The bulk-mail footer: why they got it, the way out, and the postal
-// address. CiviMail refuses to send bulk mail without the tokens.
+// Only the line unique to this blast. The unsubscribe links and the postal
+// address come from CiviMail's standing mailing footer, which the composer
+// attaches to every bulk mailing; repeating them here stacked three footers
+// in a row, counting the last-resort link Postmark appends on broadcast
+// streams. CiviMail's required-token check passes because the attached
+// footer carries the tokens.
 $text .= <<<'TEXT'
 
 
-----
 You are receiving this one-time note because you are registered for Brainstorm 2026.
-Unsubscribe: {action.unsubscribeUrl}
-The Open Accounts Receivable Collective Foundation, {domain.address}
 TEXT;
 
 $html .= <<<'HTML'
 
-<hr style="margin:28px 0 12px;border:none;border-top:1px solid #ddd8d0;" />
-<p style="font-size:12px;color:#8a8378;">
+<p style="margin-top:28px;font-size:12px;color:#8a8378;">
 You are receiving this one-time note because you are registered for Brainstorm 2026.
-<a href="{action.unsubscribeUrl}" style="color:#8a8378;">Unsubscribe</a>.<br />
-The Open Accounts Receivable Collective Foundation, {domain.address}
 </p>
 HTML;
 
