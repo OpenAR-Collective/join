@@ -37,7 +37,7 @@ Next week at Brainstorm, hundreds of people who care about accounts receivable w
 
 The OpenAR Collective is a nonprofit bringing together accounts receivable professionals to pool talents in ways our industry has never tried. Among our ambitious goals is creating an open-source AR and collections platform. Everything we make is free, now and forever.
 
-The conference name suits us. The platform is in its design phase right now, being planned in the open, and the practitioners in our community are deciding what gets built first. We are at the brainstorming stage ourselves, so now is the best time to make your voice heard!
+The conference name suits us. The platform is in its design phase right now, being planned in the open (https://github.com/OpenAR-Collective/platform-design), and the practitioners in our community are deciding what gets built first. We are at the brainstorming stage ourselves, so now is the best time to make your voice heard!
 
 Membership is free and takes about two minutes to request at openarcollective.org/join. All applications are reviewed by a person, usually within a day or two. Join this week, and you can pick up your member ribbon at our booth and show your support right on your conference nametag.
 
@@ -63,7 +63,7 @@ $html = <<<'HTML'
 
 <p>The OpenAR Collective is a nonprofit bringing together accounts receivable professionals to pool talents in ways our industry has never tried. Among our ambitious goals is creating an <strong>open-source AR and collections platform</strong>. Everything we make is free, now and forever.</p>
 
-<p>The conference name suits us. The platform is in its design phase right now, being planned in the open, and the practitioners in our community are deciding what gets built first. We are at the brainstorming stage ourselves, so now is the best time to make your voice heard!</p>
+<p>The conference name suits us. The platform is in its design phase right now, being <a href="https://github.com/OpenAR-Collective/platform-design">planned in the open</a>, and the practitioners in our community are deciding what gets built first. We are at the brainstorming stage ourselves, so now is the best time to make your voice heard!</p>
 
 <p>Membership is free and takes about two minutes to request at <a href="https://openarcollective.org/join">openarcollective.org/join</a>. All applications are reviewed by a person, usually within a day or two.</p>
 
