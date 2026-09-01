@@ -2,7 +2,7 @@
 /**
  * Plugin Name: OpenAR mail streams
  * Description: Routes CiviMail bulk mailings onto the Postmark broadcast stream matching their audience, delivers them to Postmark's broadcast SMTP host, and tells Postmark never to track.
- * Version:     1.2.0
+ * Version:     1.3.0
  * License:     Apache-2.0
  *
  * Postmark separates transactional mail from bulk, and its terms require
@@ -92,6 +92,14 @@ function openar_mail_stream_route(&$params, $context = NULL): void {
   }
   $params['headers']['X-PM-Message-Stream'] =
     openar_mail_stream_for_job((int) ($params['job_id'] ?? 0));
+
+  // The standard declaration that we manage unsubscribes ourselves. Postmark
+  // appends its own last-resort link to broadcast messages that lack this
+  // header, which put a second unsubscribe path, invisible to CiviCRM and
+  // scoped to one stream, under the one the footer already offers. Ours is
+  // the system of record, so ours is the only one advertised. The address is
+  // read by a person, matching what the mail itself promises.
+  $params['headers']['List-Unsubscribe'] = '<mailto:membership@openarcollective.org>';
 }
 
 /**
