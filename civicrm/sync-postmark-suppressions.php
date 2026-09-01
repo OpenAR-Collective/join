@@ -31,11 +31,14 @@ echo gmdate('c') . " postmark suppression sync starting\n";
 
 try {
   // The server token is the SMTP credential CiviCRM already holds. It is
-  // used here and never printed.
-  $token = (string) ((\Civi::settings()->get('mailing_backend')['smtpPassword']) ?? '');
-  if ($token === '') {
+  // stored encrypted, so it goes through CiviCRM's own decryption; a value
+  // stored in the clear passes through decrypt() unchanged. Used here and
+  // never printed.
+  $stored = (string) ((\Civi::settings()->get('mailing_backend')['smtpPassword']) ?? '');
+  if ($stored === '') {
     throw new RuntimeException('no SMTP credential in CiviCRM settings');
   }
+  $token = (string) \Civi::service('crypto.token')->decrypt($stored);
 
   $optedOut = 0;
   $held = 0;
