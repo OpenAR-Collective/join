@@ -25,7 +25,7 @@ openar_snapshot(basename(__FILE__, '.php'));
 
 use Civi\Api4\MessageTemplate;
 
-$title = 'OpenAR - September 2026 members update';
+$title = 'Member News - September 2026 members update';
 
 $text = <<<'TEXT'
 {contact.first_name},

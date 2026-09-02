@@ -31,7 +31,7 @@ require_once __DIR__ . '/openar-signature.php';
 /* ---------------------------------------------------------------- member -- */
 
 $templates[] = [
-  'msg_title' => 'OpenAR - You are already a member',
+  'msg_title' => 'Automated Membership - You are already a member',
   'msg_subject' => 'Good news, you are already a member!',
   'closing' => 'Good to have you with us',
   'msg_text' => <<<'TEXT'
@@ -80,7 +80,7 @@ HTML,
 // review or was declined. Nothing here re-states or re-litigates a decision;
 // a declined applicant is picked up by a director instead.
 $templates[] = [
-  'msg_title' => 'OpenAR - Your application is already with us',
+  'msg_title' => 'Automated Membership - Your application is already with us',
   'msg_subject' => 'Your application is already with us',
   'closing' => 'Thank you for your patience',
   'msg_text' => <<<'TEXT'

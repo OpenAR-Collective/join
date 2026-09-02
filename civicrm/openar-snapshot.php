@@ -158,10 +158,15 @@ if (!function_exists('openar_snapshot')) {
     }
 
     // Every message template we own, including any hand edit made in the UI.
+    // Matched structurally rather than by title prefix: the titles carry
+    // grouping prefixes now (Automated Membership, Member News, and so on),
+    // and a capture keyed to any prefix would silently drop whatever a future
+    // prefix names. Workflow templates are CiviCRM's own; everything else
+    // here is ours.
     try {
       $templates = civicrm_api4('MessageTemplate', 'get', [
         'select' => ['id', 'msg_title', 'msg_subject', 'msg_text', 'msg_html'],
-        'where' => [['msg_title', 'LIKE', 'OpenAR%']],
+        'where' => [['workflow_name', 'IS EMPTY'], ['is_sms', '=', FALSE]],
         'orderBy' => ['msg_title' => 'ASC'],
         'checkPermissions' => FALSE,
       ]);

@@ -15,7 +15,7 @@ civicrm_initialize();
 
 use Civi\Api4\MessageTemplate;
 
-$title = 'OpenAR - Your Discord link, again';
+$title = 'Automated Membership - Your Discord link, again';
 
 $vals = [
   'msg_title' => $title,

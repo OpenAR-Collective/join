@@ -23,7 +23,7 @@ civicrm_initialize();
 // template to this, so looking for the old title finds nothing and the
 // script tells the operator to run connect-template.php, which does not
 // help because that is what renamed it.
-const CONNECT_TEMPLATE = 'OpenAR - Your Discord link, again';
+const CONNECT_TEMPLATE = 'Automated Membership - Your Discord link, again';
 
 if (!function_exists('openar_discord_configured') || !openar_discord_configured()) {
   echo "Discord is not configured, so no link can be built. Check the five constants in wp-config.php.\n";

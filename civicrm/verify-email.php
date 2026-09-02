@@ -23,7 +23,7 @@ define('OPENAR_SNAPSHOT_INCLUDED', TRUE);
 require_once __DIR__ . '/openar-snapshot.php';
 openar_snapshot(basename(__FILE__, '.php'));
 
-const TEMPLATE_TITLE = 'OpenAR - Confirm your email address';
+const TEMPLATE_TITLE = 'Automated Membership - Confirm your email address';
 const FORMS = ['afformMembershipApplication'];
 const APPLY_URL = 'https://join.openarcollective.org/apply';
 

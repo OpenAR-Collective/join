@@ -71,7 +71,7 @@ $templates = [];
 /* ---------------------------------------------------- confirm the signer -- */
 
 $templates[] = [
-  'msg_title' => 'OpenAR - Confirm your Statement of Support',
+  'msg_title' => 'Automated Supporter - Confirm your Statement of Support',
   'msg_subject' => 'Confirm your organization\'s Statement of Support',
   'closing' => 'With thanks',
   'msg_text' => <<<'TEXT'
@@ -115,7 +115,7 @@ HTML,
 /* --------------------------------------------------------- for reviewers -- */
 
 $templates[] = [
-  'msg_title' => 'OpenAR - New Statement of Support for review',
+  'msg_title' => 'Automated Supporter - New Statement of Support for review',
   'msg_subject' => 'Statement of Support to review: {contact.display_name}',
   'msg_text' => <<<TXT
 A Mission Supporter Statement of Support has been confirmed and is waiting for review.
@@ -189,7 +189,7 @@ HTML,
 /* ------------------------------------------------------------ now listed -- */
 
 $templates[] = [
-  'msg_title' => 'OpenAR - Your organization is now listed',
+  'msg_title' => 'Automated Supporter - Your organization is now listed',
   'msg_subject' => '{$organizationName} is now a Mission Supporter',
   'closing' => 'Thank you for standing with us',
   'msg_text' => <<<'TEXT'

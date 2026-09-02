@@ -23,7 +23,7 @@ require_once __DIR__ . '/openar-signature.php';
 
 use Civi\Api4\MessageTemplate;
 
-$title = 'OpenAR - Welcome to the Collective';
+$title = 'Automated Membership - Welcome to the Collective';
 
 $text = <<<'TEXT'
 Hello {$firstName},

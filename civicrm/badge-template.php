@@ -22,7 +22,7 @@ openar_snapshot(basename(__FILE__, '.php'));
 
 use Civi\Api4\MessageTemplate;
 
-$title = 'OpenAR - Your member badge';
+$title = 'Automated Membership - Your member badge';
 
 $vals = [
   'msg_title' => $title,

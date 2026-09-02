@@ -10,7 +10,7 @@ openar_snapshot(basename(__FILE__, '.php'));
 
 use Civi\Api4\MessageTemplate;
 
-$title = 'OpenAR - New membership application for review';
+$title = 'Automated Membership - New membership application for review';
 // wp-admin, not the front end. CiviCRM renders inside the site theme on the
 // basepage, where the brand stylesheet is scoped to public forms only and the
 // theme's typography fights CiviCRM's own: mismatched fonts and backgrounds,

@@ -128,7 +128,7 @@ $appeal = 'If you think this is wrong, you can ask the Board to review it. Write
 $templates = [];
 
 $templates[] = [
-  'msg_title' => 'OpenAR - Membership revoked',
+  'msg_title' => 'Automated Membership - Membership revoked',
   'msg_subject' => 'Your OpenAR Collective membership',
   'closing' => 'Sincerely',
   'msg_text' => <<<TEXT
@@ -169,7 +169,7 @@ HTML,
 ];
 
 $templates[] = [
-  'msg_title' => 'OpenAR - Mission Supporter participation revoked',
+  'msg_title' => 'Automated Supporter - Mission Supporter participation revoked',
   'msg_subject' => 'Your organization\'s Mission Supporter participation',
   'closing' => 'Sincerely',
   'msg_text' => <<<TEXT
@@ -214,7 +214,7 @@ HTML,
 // revocation notice with a blank where the reason should be is worse than one
 // that arrives an hour late.
 $templates[] = [
-  'msg_title' => 'OpenAR - Revocation recorded without a reason',
+  'msg_title' => 'Automated Membership - Revocation recorded without a reason',
   'msg_subject' => 'Revocation not sent, no reason recorded: {$displayName}',
   'msg_text' => <<<'TEXT'
 {$displayName} (contact {$contactId}) was added to a revoked group, but "Reason for revocation" is empty, so nothing has been sent to them.

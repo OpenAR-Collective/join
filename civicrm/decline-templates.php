@@ -27,7 +27,7 @@ $templates = [];
 // by burying it makes the reader hunt for it, and finding it that way is worse
 // than being told plainly. What comes after is where the warmth belongs.
 $templates[] = [
-  'msg_title' => 'OpenAR - Membership application declined',
+  'msg_title' => 'Automated Membership - Membership application declined',
   'msg_subject' => 'Your membership application to the OpenAR Collective',
   'closing' => 'With thanks for your interest',
   'msg_text' => <<<'TEXT'
@@ -94,7 +94,7 @@ HTML,
 /* ------------------------------------------------ nothing sent, needs work -- */
 
 $templates[] = [
-  'msg_title' => 'OpenAR - Decline recorded without a reason',
+  'msg_title' => 'Automated Membership - Decline recorded without a reason',
   'msg_subject' => 'Decline not sent, no reason recorded: {$displayName}',
   'msg_text' => <<<'TEXT'
 {$displayName} (contact {$contactId}) was added to the declined group, but the "Reason given to the applicant" field is empty, so nothing has been sent to them.

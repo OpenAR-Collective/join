@@ -2,7 +2,7 @@
 /**
  * Plugin Name: OpenAR Collective onboarding
  * Description: Confirmation links, review queues, and publication for membership and Mission Supporter signups.
- * Version:     1.5.0
+ * Version:     1.6.0
  * License:     Apache-2.0
  *
  * Deployed as a must-use plugin at wp-content/mu-plugins/openar-onboarding.php,
@@ -21,15 +21,15 @@ if (!defined('ABSPATH')) {
 const OPENAR_APPLICATION_SOURCE = 'Membership application';
 const OPENAR_REVIEW_GROUP = 'applicants_pending_review';
 const OPENAR_REVIEW_INBOX = 'membership@openarcollective.org';
-const OPENAR_REVIEW_TEMPLATE = 'OpenAR - New membership application for review';
+const OPENAR_REVIEW_TEMPLATE = 'Automated Membership - New membership application for review';
 
-const OPENAR_VERIFY_TEMPLATE = 'OpenAR - Confirm your email address';
+const OPENAR_VERIFY_TEMPLATE = 'Automated Membership - Confirm your email address';
 const OPENAR_VERIFY_LIFETIME_DAYS = 7;
 
 const OPENAR_MEMBERS_GROUP = 'members';
 const OPENAR_DECLINED_GROUP = 'applicants_declined';
-const OPENAR_ALREADY_MEMBER_TEMPLATE = 'OpenAR - You are already a member';
-const OPENAR_ALREADY_APPLIED_TEMPLATE = 'OpenAR - Your application is already with us';
+const OPENAR_ALREADY_MEMBER_TEMPLATE = 'Automated Membership - You are already a member';
+const OPENAR_ALREADY_APPLIED_TEMPLATE = 'Automated Membership - Your application is already with us';
 
 /**
  * A member's personal Discord connect link, or an empty string.
@@ -128,9 +128,9 @@ function openar_normalize_linkedin_on(int $contactId): void {
 const OPENAR_REPEAT_NOTICE_HOURS = 24;
 const OPENAR_REPEAT_ACTIVITY = 'Membership application received from an address already on file';
 
-const OPENAR_WELCOME_TEMPLATE = 'OpenAR - Welcome to the Collective';
-const OPENAR_DECLINE_TEMPLATE = 'OpenAR - Membership application declined';
-const OPENAR_DECLINE_INCOMPLETE_TEMPLATE = 'OpenAR - Decline recorded without a reason';
+const OPENAR_WELCOME_TEMPLATE = 'Automated Membership - Welcome to the Collective';
+const OPENAR_DECLINE_TEMPLATE = 'Automated Membership - Membership application declined';
+const OPENAR_DECLINE_INCOMPLETE_TEMPLATE = 'Automated Membership - Decline recorded without a reason';
 const OPENAR_DECLINE_ACTIVITY = 'Membership application declined';
 
 /**
@@ -160,21 +160,21 @@ const OPENAR_FORMS = [
     'kind' => 'membership',
     'email_keys' => ['email'],
     'name_keys' => ['first_name'],
-    'confirm_template' => 'OpenAR - Confirm your email address',
+    'confirm_template' => 'Automated Membership - Confirm your email address',
   ],
   'afformSupporterStatement' => [
     'kind' => 'supporter',
     'email_keys' => ['MissionSupporter.signer_email'],
     'name_keys' => ['MissionSupporter.signer_name'],
-    'confirm_template' => 'OpenAR - Confirm your Statement of Support',
+    'confirm_template' => 'Automated Supporter - Confirm your Statement of Support',
   ],
 ];
 
 const OPENAR_SUPPORTER_SOURCE = 'Mission Supporter statement';
 const OPENAR_SUPPORTERS_PENDING_GROUP = 'supporters_pending';
 const OPENAR_SUPPORTERS_PUBLISHED_GROUP = 'supporters_published';
-const OPENAR_SUPPORTER_REVIEW_TEMPLATE = 'OpenAR - New Statement of Support for review';
-const OPENAR_SUPPORTER_LISTED_TEMPLATE = 'OpenAR - Your organization is now listed';
+const OPENAR_SUPPORTER_REVIEW_TEMPLATE = 'Automated Supporter - New Statement of Support for review';
+const OPENAR_SUPPORTER_LISTED_TEMPLATE = 'Automated Supporter - Your organization is now listed';
 const OPENAR_SUPPORTER_LISTED_ACTIVITY = 'Mission Supporter listing confirmed';
 const OPENAR_SUPPORTERS_DECLINED_GROUP = 'supporters_declined';
 
@@ -188,11 +188,11 @@ const OPENAR_SUPPORTERS_DECLINED_GROUP = 'supporters_declined';
  */
 const OPENAR_MEMBERS_REVOKED_GROUP = 'members_revoked';
 const OPENAR_SUPPORTERS_REVOKED_GROUP = 'supporters_revoked';
-const OPENAR_MEMBER_REVOKE_TEMPLATE = 'OpenAR - Membership revoked';
-const OPENAR_SUPPORTER_REVOKE_TEMPLATE = 'OpenAR - Mission Supporter participation revoked';
-const OPENAR_REVOKE_INCOMPLETE_TEMPLATE = 'OpenAR - Revocation recorded without a reason';
+const OPENAR_MEMBER_REVOKE_TEMPLATE = 'Automated Membership - Membership revoked';
+const OPENAR_SUPPORTER_REVOKE_TEMPLATE = 'Automated Supporter - Mission Supporter participation revoked';
+const OPENAR_REVOKE_INCOMPLETE_TEMPLATE = 'Automated Membership - Revocation recorded without a reason';
 const OPENAR_REVOKE_ACTIVITY = 'Participation revoked';
-const OPENAR_SUPPORTER_DECLINE_TEMPLATE = 'OpenAR - Statement of Support declined';
+const OPENAR_SUPPORTER_DECLINE_TEMPLATE = 'Automated Supporter - Statement of Support declined';
 const OPENAR_SUPPORTER_DECLINE_ACTIVITY = 'Mission Supporter statement declined';
 
 /**

@@ -28,7 +28,7 @@ openar_snapshot(basename(__FILE__, '.php'));
 
 use Civi\Api4\MessageTemplate;
 
-$title = 'OpenAR - Brainstorm 2026 prospect blast';
+$title = 'Marketing - Brainstorm 2026 prospect blast';
 
 $text = <<<'TEXT'
 {contact.first_name},

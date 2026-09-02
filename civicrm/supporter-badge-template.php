@@ -23,7 +23,7 @@ openar_snapshot(basename(__FILE__, '.php'));
 
 use Civi\Api4\MessageTemplate;
 
-$title = 'OpenAR - Your Mission Supporter badge';
+$title = 'Automated Supporter - Your Mission Supporter badge';
 
 $vals = [
   'msg_title' => $title,

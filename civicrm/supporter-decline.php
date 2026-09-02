@@ -94,7 +94,7 @@ foreach ($fields as $f) {
 
 /* ---------------------------------------------------------- the email -- */
 
-$title = 'OpenAR - Statement of Support declined';
+$title = 'Automated Supporter - Statement of Support declined';
 
 $text = <<<'TEXT'
 Hello {$firstName},

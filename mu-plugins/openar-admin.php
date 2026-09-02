@@ -2,7 +2,7 @@
 /**
  * Plugin Name: OpenAR onboarding admin
  * Description: A screen for the parts of onboarding that CiviCRM cannot show, chiefly unconfirmed applications.
- * Version:     1.3.0
+ * Version:     1.4.0
  * License:     Apache-2.0
  *
  * CiviCRM's own Submissions screen lists form submissions, but for an
@@ -1915,7 +1915,7 @@ function openar_admin_send_discord_link(int $contactId): string {
 
   $template = civicrm_api4('MessageTemplate', 'get', [
     'select' => ['id'],
-    'where' => [['msg_title', '=', 'OpenAR - Your Discord link, again'], ['is_active', '=', TRUE]],
+    'where' => [['msg_title', '=', 'Automated Membership - Your Discord link, again'], ['is_active', '=', TRUE]],
     'checkPermissions' => FALSE,
   ])->first();
 
@@ -2042,7 +2042,7 @@ function openar_admin_send_badge(int $contactId): string {
 
   $template = civicrm_api4('MessageTemplate', 'get', [
     'select' => ['id'],
-    'where' => [['msg_title', '=', 'OpenAR - Your member badge'], ['is_active', '=', TRUE]],
+    'where' => [['msg_title', '=', 'Automated Membership - Your member badge'], ['is_active', '=', TRUE]],
     'checkPermissions' => FALSE,
   ])->first();
 
@@ -2264,7 +2264,7 @@ function openar_admin_send_supporter_badge(int $contactId): string {
 
   $template = civicrm_api4('MessageTemplate', 'get', [
     'select' => ['id'],
-    'where' => [['msg_title', '=', 'OpenAR - Your Mission Supporter badge'], ['is_active', '=', TRUE]],
+    'where' => [['msg_title', '=', 'Automated Supporter - Your Mission Supporter badge'], ['is_active', '=', TRUE]],
     'checkPermissions' => FALSE,
   ])->first();
 
