@@ -2,7 +2,7 @@
 /**
  * Plugin Name: OpenAR onboarding admin
  * Description: A screen for the parts of onboarding that CiviCRM cannot show, chiefly unconfirmed applications.
- * Version:     1.4.0
+ * Version:     1.5.0
  * License:     Apache-2.0
  *
  * CiviCRM's own Submissions screen lists form submissions, but for an
@@ -400,6 +400,27 @@ function openar_admin_page(): void {
       if (str_starts_with($notice, 'Could not')) {
         $error = $notice;
         $notice = '';
+      }
+    }
+  }
+
+  // Deleting an unconfirmed submission. Erasure, not a decline: the person
+  // was never reviewed, no contact record exists, and nothing is sent. Only
+  // lapsed submissions can be deleted, in the handler as well as on the
+  // screen, so an application whose link somebody might still click cannot
+  // be removed by a misclick.
+  if (!empty($_POST['openar_delete_pending'])) {
+    $id = (int) $_POST['openar_delete_pending'];
+    if (!isset($_POST['_wpnonce']) || !wp_verify_nonce(sanitize_key($_POST['_wpnonce']), 'openar_delete_' . $id)) {
+      $error = 'That request could not be verified. Please try again.';
+    }
+    else {
+      $result = openar_admin_delete_pending($id);
+      if (str_starts_with($result, 'Deleted')) {
+        $notice = $result;
+      }
+      else {
+        $error = $result;
       }
     }
   }
@@ -848,6 +869,9 @@ function openar_admin_page(): void {
         email. Nothing is written to the contact records until they do, which is
         why these do not appear under Find Contacts. Links last
         <?php echo (int) (defined('OPENAR_VERIFY_LIFETIME_DAYS') ? OPENAR_VERIFY_LIFETIME_DAYS : 7); ?> days.
+        Deleting a lapsed one erases the submission entirely: the person was
+        never reviewed, nothing is sent to anyone, and applying again later
+        starts clean.
       </p>
 
       <table class="wp-list-table widefat fixed striped">
@@ -878,11 +902,20 @@ function openar_admin_page(): void {
               <?php endif; ?>
             </td>
             <td>
-              <form method="post" style="margin:0">
-                <?php wp_nonce_field('openar_resend_' . $r['id']); ?>
-                <input type="hidden" name="openar_resend" value="<?php echo (int) $r['id']; ?>" />
-                <button type="submit" class="button">Resend link</button>
-              </form>
+              <div style="display:flex;gap:6px">
+                <form method="post" style="margin:0">
+                  <?php wp_nonce_field('openar_resend_' . $r['id']); ?>
+                  <input type="hidden" name="openar_resend" value="<?php echo (int) $r['id']; ?>" />
+                  <button type="submit" class="button">Resend link</button>
+                </form>
+                <?php if (!$r['live']) : ?>
+                  <form method="post" style="margin:0">
+                    <?php wp_nonce_field('openar_delete_' . $r['id']); ?>
+                    <input type="hidden" name="openar_delete_pending" value="<?php echo (int) $r['id']; ?>" />
+                    <button type="submit" class="button" style="color:#a13b1e">Delete</button>
+                  </form>
+                <?php endif; ?>
+              </div>
             </td>
           </tr>
         <?php endforeach; ?>
@@ -2353,4 +2386,43 @@ function openar_admin_supporter_badge_download(): void {
     @unlink($badge['fullPath']);
   }
   exit;
+}
+
+/**
+ * Delete one unconfirmed submission, erasing everything the person typed.
+ *
+ * Refuses while the confirmation link is still live: until it lapses, the
+ * person may yet click it, and the sane actions are waiting or resending.
+ * An unconfirmed submission has no contact record, so this deletion is the
+ * whole erasure, for either form.
+ *
+ * @return string A sentence for the screen. Anything not starting "Deleted" is an error.
+ */
+function openar_admin_delete_pending(int $submissionId): string {
+  if (!function_exists('civi_wp')) {
+    return 'CiviCRM is not available, so nothing was deleted.';
+  }
+  civi_wp()->initialize();
+
+  $row = NULL;
+  foreach (openar_admin_pending() as $p) {
+    if ($p['id'] === $submissionId) {
+      $row = $p;
+      break;
+    }
+  }
+  if (!$row) {
+    return "Submission #{$submissionId} is not in the waiting list, so nothing was deleted.";
+  }
+  if ($row['live']) {
+    return "The confirmation link for {$row['name']} is still live, so nothing was deleted. "
+      . 'Wait for it to lapse, or resend it instead.';
+  }
+
+  civicrm_api4('AfformSubmission', 'delete', [
+    'where' => [['id', '=', $submissionId], ['status_id:name', '=', 'Pending']],
+    'checkPermissions' => FALSE,
+  ]);
+
+  return "Deleted the unconfirmed submission from {$row['name']}. Nothing else held their information.";
 }
