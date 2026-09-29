@@ -2,7 +2,7 @@
 /**
  * Plugin Name: OpenAR onboarding admin
  * Description: A screen for the parts of onboarding that CiviCRM cannot show, chiefly unconfirmed applications.
- * Version:     1.5.0
+ * Version:     1.6.0
  * License:     Apache-2.0
  *
  * CiviCRM's own Submissions screen lists form submissions, but for an
@@ -552,6 +552,35 @@ function openar_admin_page(): void {
     }
   }
 
+  // The meetup the welcome email invites new members to. Only a failed save
+  // sets the form's contents from the post, so a typo costs one field rather
+  // than all eight.
+  $meetupForm = NULL;
+  if (!empty($_POST['openar_meetup_action'])) {
+    if (!isset($_POST['_wpnonce']) || !wp_verify_nonce(sanitize_key($_POST['_wpnonce']), 'openar_meetup')) {
+      $error = 'That request could not be verified. Please try again.';
+    }
+    elseif (!function_exists('openar_meetup_clean')) {
+      $error = 'The meetup plugin is not loaded, so nothing was changed.';
+    }
+    elseif ($_POST['openar_meetup_action'] === 'clear') {
+      delete_option(OPENAR_MEETUP_OPTION);
+      $notice = 'The welcome email no longer mentions a meetup.';
+    }
+    else {
+      $posted = wp_unslash((array) ($_POST['openar_meetup'] ?? []));
+      [$clean, $why] = openar_meetup_clean($posted);
+      if ($clean === NULL) {
+        $error = $why . ' Nothing was saved.';
+        $meetupForm = array_map('strval', $posted);
+      }
+      else {
+        update_option(OPENAR_MEETUP_OPTION, $clean, FALSE);
+        $notice = 'Saved. ' . openar_meetup_status();
+      }
+    }
+  }
+
   if (!empty($_POST['openar_sync_roster'])) {
     if (!isset($_POST['_wpnonce']) || !wp_verify_nonce(sanitize_key($_POST['_wpnonce']), 'openar_sync_roster')) {
       $error = 'That request could not be verified. Please try again.';
@@ -1079,6 +1108,70 @@ function openar_admin_page(): void {
           </select>
           <button type="submit" name="openar_supporter_badge_action" value="email" class="button">Email their badge</button>
           <button type="submit" name="openar_supporter_badge_action" value="download" class="button">Download it</button>
+        </p>
+      </form>
+    <?php endif; ?>
+
+    <h2 style="margin-top:2em">Member meetup in the welcome email</h2>
+    <p class="description" style="max-width:60em">
+      While a meetup is set here and a meeting is still ahead, the welcome email
+      invites each new member to it, with a calendar file holding the meetings
+      they can still attend and a Google Calendar link. After the last meeting it
+      drops out of the email by itself. The call link is kept here rather than in
+      the code because anyone who has it can join. Times are Central.
+    </p>
+
+    <?php if (!function_exists('openar_meetup_settings')) : ?>
+      <p class="description"><strong>The meetup plugin is not loaded.</strong></p>
+    <?php else : ?>
+      <?php $mf = $meetupForm ?? (openar_meetup_settings() ?? []); ?>
+      <p style="max-width:60em"><strong><?php echo esc_html(openar_meetup_status()); ?></strong></p>
+      <form method="post" action="<?php echo esc_url(admin_url('tools.php?page=' . OPENAR_ADMIN_SLUG)); ?>" class="card" style="max-width:60em;padding:6px 20px 16px;margin:14px 0">
+        <?php wp_nonce_field('openar_meetup'); ?>
+        <table class="form-table" role="presentation">
+          <tr>
+            <th scope="row"><label for="openar_meetup_title">Title</label></th>
+            <td><input type="text" class="regular-text" id="openar_meetup_title" name="openar_meetup[title]"
+              value="<?php echo esc_attr($mf['title'] ?? ''); ?>" required /></td>
+          </tr>
+          <tr>
+            <th scope="row"><label for="openar_meetup_link">Call link</label></th>
+            <td><input type="url" class="regular-text" id="openar_meetup_link" name="openar_meetup[link]"
+              value="<?php echo esc_attr($mf['link'] ?? ''); ?>" placeholder="https://meet.google.com/..." required /></td>
+          </tr>
+          <tr>
+            <th scope="row"><label for="openar_meetup_dial">Dial-in</label></th>
+            <td><input type="text" class="regular-text" id="openar_meetup_dial" name="openar_meetup[dial]"
+              value="<?php echo esc_attr($mf['dial'] ?? ''); ?>" />
+              <p class="description">Optional. Shown as written, after "Or dial in:".</p></td>
+          </tr>
+          <tr>
+            <th scope="row"><label for="openar_meetup_about">Description</label></th>
+            <td><textarea class="large-text" rows="4" id="openar_meetup_about" name="openar_meetup[about]"><?php echo esc_textarea($mf['about'] ?? ''); ?></textarea>
+              <p class="description">Goes in the email and in the calendar entry.</p></td>
+          </tr>
+          <tr>
+            <th scope="row">Meetings</th>
+            <td>
+              <label>First <input type="date" name="openar_meetup[first]" value="<?php echo esc_attr($mf['first'] ?? ''); ?>" required /></label>
+              &nbsp; <label>Last <input type="date" name="openar_meetup[last]" value="<?php echo esc_attr($mf['last'] ?? ''); ?>" required /></label>
+              <p class="description">Weekly, so both fall on the same weekday.</p>
+            </td>
+          </tr>
+          <tr>
+            <th scope="row">Time</th>
+            <td>
+              <label>Starts <input type="time" name="openar_meetup[start]" value="<?php echo esc_attr($mf['start'] ?? ''); ?>" required /></label>
+              &nbsp; <label>Ends <input type="time" name="openar_meetup[end]" value="<?php echo esc_attr($mf['end'] ?? ''); ?>" required /></label>
+              <p class="description">Central time.</p>
+            </td>
+          </tr>
+        </table>
+        <p style="display:flex;gap:10px;margin:0">
+          <button type="submit" name="openar_meetup_action" value="save" class="button button-primary">Save</button>
+          <?php if (openar_meetup_settings()) : ?>
+            <button type="submit" name="openar_meetup_action" value="clear" class="button" formnovalidate>Remove from the welcome email</button>
+          <?php endif; ?>
         </p>
       </form>
     <?php endif; ?>

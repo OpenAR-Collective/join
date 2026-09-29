@@ -42,7 +42,7 @@ nothing, apart from credentials.
 
 | Directory | What it holds |
 |---|---|
-| `mu-plugins/` | The must-use plugins: onboarding, Discord connect, short URLs, badges, mail streams, admin screen |
+| `mu-plugins/` | The must-use plugins: onboarding, Discord connect, short URLs, badges, member meetup, mail streams, admin screen |
 | `mu-plugins/openar-assets/` | The badge art and font the badges plugin draws with |
 | `civicrm/` | Scripts that build the custom fields, groups, forms and email templates |
 | `wordpress/` | The join site's brand stylesheet and its installer |
@@ -137,6 +137,14 @@ to draw legibly gets the plain badge rather than one shrunk into
 illegibility. The **Send a supporter badge** section on the Tools screen
 emails a fresh copy to the signer or downloads it locally, and its list says
 which organizations fall back to the plain badge.
+
+## Member meetup
+
+While a member meetup is set, the welcome email invites each new member to it: a paragraph saying when it meets and when the next one is, the call link, a calendar file attached, and a Google Calendar link. `openar-meetup.php` builds all of it at send time from the **Member meetup in the welcome email** section of the Tools screen, where the title, call link, optional dial-in, description, first and last meeting, and start and end time (Central) are set.
+
+The call link lives in that setting, not in this repository, because anyone who has it can join and this repository is public. The same goes for any member mailing that carries it: those are provisioned from outside the repository, and their mailing visibility is set to members only so the body never appears in CiviCRM's public mailing archive.
+
+A meetup is one weekly series with a last meeting, so it cannot be forgotten and left running: once the last meeting has ended, the paragraph and the attachment drop out of the welcome email by themselves, and the Tools screen says so. A member admitted partway through gets a calendar file holding only the meetings still ahead. The calendar file's UID is fixed by the first meeting date, so when a member adds the series from both a mailing and their welcome email, calendar apps can recognize it as the same series rather than adding a second copy.
 
 ## CiviCRM belongs in wp-admin
 

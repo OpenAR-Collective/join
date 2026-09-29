@@ -6,6 +6,10 @@
  * mu-plugin. Until the Discord application exists the email points at
  * membership@ instead, rather than carrying a link that goes nowhere.
  *
+ * The meetup section appears only while openar-meetup.php has a meeting ahead;
+ * its link and wording come from the Tools screen at send time, so none of it
+ * is written here.
+ *
  * Idempotent. Run as the web user:
  *   sudo -u www-data wp --path=/var/www/openarcollective.org eval-file welcome-template.php
  */
@@ -45,7 +49,17 @@ Most of what makes membership worthwhile happens on the Foundation's Discord ser
 For an invitation to the Foundation's Discord server, write to membership@openarcollective.org and we will send you one.
 {/if}
 
-You have also been added to the members-only email list, which you can unsubscribe from at any time by writing to membership@openarcollective.org, without affecting your membership.
+{if $meetupTitle}Join us at the {$meetupTitle}. {$meetupSchedule} {$meetupAbout}
+
+Join the call: {$meetupLink}
+{if $meetupDial}Or dial in: {$meetupDial}
+{/if}
+
+{if $meetupAttached}The calendar file attached to this email adds the meetups to Outlook, Apple Calendar, or any other calendar app. If you use Google Calendar, this link adds them for you: {$meetupGcal}
+{else}If you use Google Calendar, this link adds the meetups for you: {$meetupGcal}
+{/if}
+
+{/if}You have also been added to the members-only email list, which you can unsubscribe from at any time by writing to membership@openarcollective.org, without affecting your membership.
 
 There are a few things the Foundation asks of everyone, and they exist so the space stays worth being in.
 
@@ -84,6 +98,18 @@ $html = <<<'HTML'
 <p><a href="{$discordUrl}" style="display:inline-block;padding:12px 22px;background:#e8a020;color:#161410;font-family:Arial,Helvetica,sans-serif;font-weight:600;text-decoration:none;border-radius:3px;">Join the Discord server</a></p>
 {else}
 <p>For an invitation to the Foundation's Discord server, write to <a href="mailto:membership@openarcollective.org">membership@openarcollective.org</a> and we will send you one.</p>
+{/if}
+{if $meetupTitle}
+<p><strong>Join us at the {$meetupTitle|escape}.</strong> {$meetupSchedule|escape} {$meetupAbout|escape}</p>
+
+<p><strong>Join the call:</strong> <a href="{$meetupLink|escape}">{$meetupLink|escape}</a>{if $meetupDial}<br />
+<strong>Or dial in:</strong> {$meetupDial|escape}{/if}</p>
+
+{if $meetupAttached}
+<p>The calendar file attached to this email adds the meetups to Outlook, Apple Calendar, or any other calendar app, and <a href="{$meetupGcal|escape}">this link adds them to Google Calendar</a>.</p>
+{else}
+<p><a href="{$meetupGcal|escape}">Add the meetups to Google Calendar</a>.</p>
+{/if}
 {/if}
 <p>You have also been added to the members-only email list, which you can unsubscribe from at any time by writing to <a href="mailto:membership@openarcollective.org">membership@openarcollective.org</a>, without affecting your membership.</p>
 

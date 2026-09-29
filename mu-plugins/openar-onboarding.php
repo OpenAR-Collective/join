@@ -2,7 +2,7 @@
 /**
  * Plugin Name: OpenAR Collective onboarding
  * Description: Confirmation links, review queues, and publication for membership and Mission Supporter signups.
- * Version:     1.6.0
+ * Version:     1.7.0
  * License:     Apache-2.0
  *
  * Deployed as a must-use plugin at wp-content/mu-plugins/openar-onboarding.php,
@@ -1967,6 +1967,13 @@ function openar_send_welcome(int $contactId, int $number): void {
     ]);
   }
 
+  // The member meetup set on the Tools screen, while a meeting is still ahead.
+  // Its calendar file is written for this send and deleted after it, like the
+  // badge.
+  $meetup = function_exists('openar_meetup_for_email')
+    ? openar_meetup_for_email()
+    : ['params' => ['meetupTitle' => ''], 'attachment' => NULL];
+
   [$fromName, $fromEmail] = \CRM_Core_BAO_Domain::getNameAndEmail();
 
   \CRM_Core_BAO_MessageTemplate::sendTemplate([
@@ -1980,12 +1987,15 @@ function openar_send_welcome(int $contactId, int $number): void {
       'memberNumber' => $number,
       'discordUrl' => $discordUrl,
       'badgeAttached' => (bool) $badge,
-    ],
-    'attachments' => $badge ? [$badge] : [],
+    ] + $meetup['params'],
+    'attachments' => array_values(array_filter([$badge, $meetup['attachment']])),
   ]);
 
   if ($badge) {
     @unlink($badge['fullPath']);
+  }
+  if ($meetup['attachment']) {
+    @unlink($meetup['attachment']['fullPath']);
   }
 }
 
