@@ -116,6 +116,12 @@ nothing arrives.
 `civicrm/pending-applications.php` still does the same job from a terminal, and
 is the fallback if the plugin is ever unloaded.
 
+### Prospects who apply
+
+Someone loaded from an event attendee list as a prospect who later applies gets a new contact from the application form, and the old prospect record would otherwise go on receiving prospect mail as though they had never joined. When the application is approved, `openar_absorb_prospect_records()` merges that old record into the new member record, but only when it is plainly the same person: an individual with the same email address, in the prospects group, with no member number of its own.
+
+The member record wins every disagreement and keeps its own address as primary; the prospect's other addresses come across as additional ones, and the prospect's audience groups are dropped. CiviCRM's merge sends the old record to the trash, where it can still be recovered. A looser match, such as the same name under a different address, is only flagged to the reviewer, because a common name is not proof; those are merged by hand on CiviCRM's merge screen.
+
 ## Badges
 
 Every member's welcome email carries their badge: the blank member badge with

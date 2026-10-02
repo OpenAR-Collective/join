@@ -2,7 +2,7 @@
 /**
  * Plugin Name: OpenAR Collective onboarding
  * Description: Confirmation links, review queues, and publication for membership and Mission Supporter signups.
- * Version:     1.7.0
+ * Version:     1.8.0
  * License:     Apache-2.0
  *
  * Deployed as a must-use plugin at wp-content/mu-plugins/openar-onboarding.php,
@@ -27,6 +27,7 @@ const OPENAR_VERIFY_TEMPLATE = 'Automated Membership - Confirm your email addres
 const OPENAR_VERIFY_LIFETIME_DAYS = 7;
 
 const OPENAR_MEMBERS_GROUP = 'members';
+const OPENAR_PROSPECTS_GROUP = 'prospects';
 const OPENAR_DECLINED_GROUP = 'applicants_declined';
 const OPENAR_ALREADY_MEMBER_TEMPLATE = 'Automated Membership - You are already a member';
 const OPENAR_ALREADY_APPLIED_TEMPLATE = 'Automated Membership - Your application is already with us';
@@ -1172,10 +1173,12 @@ function openar_handle_new_contact(int $contactId): void {
   openar_normalize_linkedin_on((int) $contact['id']);
   openar_add_to_review_queue((int) $contact['id']);
 
-  // Applicants already on file for another reason, a supporter's signer or a
-  // director, reach this point legitimately. Their new record is a duplicate,
-  // but merging contacts is destructive and needs a person, so the reviewer is
-  // told and CiviCRM's own merge screen does the work.
+  // Applicants already on file for another reason, a prospect from an event
+  // list, a supporter's signer or a director, reach this point legitimately.
+  // Their new record is a duplicate, and the reviewer is told. A prospect
+  // record under the same address is merged in on approval by
+  // openar_absorb_prospect_records(); anything else needs a person and
+  // CiviCRM's own merge screen.
   $duplicates = openar_find_duplicates((int) $contact['id']);
   if ($duplicates) {
     openar_note_duplicates((int) $contact['id'], $duplicates);
@@ -1280,9 +1283,10 @@ function openar_note_duplicates(int $contactId, array $duplicates): void {
     ->addValue('entity_id', $contactId)
     ->addValue('subject', 'Possible duplicate')
     ->addValue('note', sprintf(
-      "This email address was already on file before this application, on %s.\n\n"
-      . 'Check before admitting, and merge the records if they are the same person. '
-      . 'Nothing has been merged automatically.',
+      "Possibly already on file before this application, as %s.\n\n"
+      . 'Check before admitting. A prospect record with this same email address is '
+      . 'merged into this one automatically on approval; merge any other match '
+      . 'yourself if it is the same person.',
       implode(', ', $lines)
     ))
     ->execute();
@@ -1314,11 +1318,13 @@ function openar_notify_reviewers(int $contactId, array $duplicates = []): void {
       $lines[] = sprintf('contact %d (%s)', $id, $name);
     }
     $joined = implode(', ', $lines);
-    $warningText = "\nAlready on file: this email address belongs to " . $joined
-      . ".\nCheck before admitting, and merge the records if they are the same person.\n";
+    $warningText = "\nPossibly already on file as " . $joined
+      . ".\nCheck before admitting. A prospect record with the same email address is merged in"
+      . " automatically on approval; merge any other match yourself if it is the same person.\n";
     $warningHtml = '<p style="padding:10px 14px;border-left:3px solid #e8a020;background:#fdf6e7;">'
-      . '<strong>Already on file.</strong> This email address belongs to ' . htmlspecialchars($joined)
-      . '. Check before admitting, and merge the records if they are the same person.</p>';
+      . '<strong>Possibly already on file</strong> as ' . htmlspecialchars($joined)
+      . '. Check before admitting. A prospect record with the same email address is merged in'
+      . ' automatically on approval; merge any other match yourself if it is the same person.</p>';
   }
 
   [$fromName, $fromEmail] = \CRM_Core_BAO_Domain::getNameAndEmail();
@@ -1439,6 +1445,8 @@ function openar_admit_member(int $contactId): void {
       ->execute();
   }
 
+  openar_absorb_prospect_records($contactId);
+
   if (!empty($current['Membership.member_number'])) {
     return;
   }
@@ -1451,6 +1459,188 @@ function openar_admit_member(int $contactId): void {
     'cid' => $contactId,
     'n' => $number,
   ]);
+}
+
+/**
+ * Fold a new member's leftover prospect record into their member record.
+ *
+ * Someone first loaded from an event list who later applies gets a fresh
+ * contact from the application form, and the old prospect record goes on
+ * receiving prospect mail as though they had never joined. Only a record
+ * that is plainly the same person is folded in: an individual with the same
+ * email address, in the prospects group, with no member number of its own.
+ * A looser match, such as the same name under another address, stays a
+ * warning for the reviewer, because a common name is not proof.
+ *
+ * The member record wins every disagreement. The prospect's other addresses
+ * come across as additional ones, the member's own address stays primary,
+ * and the audience groups the prospect record was in are dropped, because a
+ * member is not a prospect. CiviCRM's merge sends the folded record to the
+ * trash, where it can still be recovered; with the trash switched off a merge
+ * would destroy it outright, so nothing is merged then.
+ *
+ * A failure is logged and never stands in the way of an admission.
+ */
+function openar_absorb_prospect_records(int $memberId): void {
+  try {
+    if (!\Civi::settings()->get('contact_undelete')) {
+      \Civi::log()->warning('OpenAR onboarding: contact trash is off, prospect records for {cid} left unmerged', ['cid' => $memberId]);
+      return;
+    }
+
+    $mine = \Civi\Api4\Email::get(FALSE)
+      ->addSelect('id', 'email', 'location_type_id', 'is_primary')
+      ->addWhere('contact_id', '=', $memberId)
+      ->execute();
+    $addresses = array_values(array_unique(array_map('strtolower', $mine->column('email'))));
+    if (!$addresses) {
+      return;
+    }
+
+    $others = \Civi\Api4\Email::get(FALSE)
+      ->addSelect('contact_id')
+      ->addWhere('email', 'IN', $addresses)
+      ->addWhere('contact_id', '!=', $memberId)
+      ->addWhere('contact_id.is_deleted', '=', FALSE)
+      ->addWhere('contact_id.contact_type', '=', 'Individual')
+      ->execute()->column('contact_id');
+
+    foreach (array_unique(array_map('intval', $others)) as $otherId) {
+      $other = \Civi\Api4\Contact::get(FALSE)
+        ->addSelect('display_name', 'Membership.member_number')
+        ->addWhere('id', '=', $otherId)
+        ->execute()->first();
+      if (!$other || !empty($other['Membership.member_number'])
+        || !openar_in_group($otherId, OPENAR_PROSPECTS_GROUP)
+        || openar_in_group($otherId, OPENAR_MEMBERS_GROUP)) {
+        continue;
+      }
+
+      openar_merge_prospect_into_member($memberId, $otherId);
+
+      \Civi::log()->info('OpenAR onboarding: prospect record {pid} ({name}) merged into member {cid}', [
+        'pid' => $otherId,
+        'name' => $other['display_name'],
+        'cid' => $memberId,
+      ]);
+    }
+  }
+  catch (\Throwable $e) {
+    \Civi::log()->error('OpenAR onboarding: merging prospect records into {cid} failed: {msg}', [
+      'cid' => $memberId,
+      'msg' => $e->getMessage(),
+    ]);
+  }
+}
+
+/** The merge itself, with the member record kept and its addresses intact. */
+function openar_merge_prospect_into_member(int $memberId, int $prospectId): void {
+  $mine = \Civi\Api4\Email::get(FALSE)
+    ->addSelect('id', 'email', 'location_type_id', 'is_primary')
+    ->addWhere('contact_id', '=', $memberId)
+    ->execute();
+  $primaryId = NULL;
+  foreach ($mine as $e) {
+    if ($e['is_primary']) {
+      $primaryId = (int) $e['id'];
+    }
+  }
+  $usedTypes = array_map('intval', $mine->column('location_type_id'));
+  $myAddresses = array_map('strtolower', $mine->column('email'));
+  $spareTypes = array_map('intval', \Civi\Api4\LocationType::get(FALSE)
+    ->addSelect('id')
+    ->addWhere('name', 'IN', ['Work', 'Other', 'Main', 'Billing'])
+    ->addWhere('is_active', '=', TRUE)
+    ->execute()->column('id'));
+
+  // An address the member already has needs nothing from the prospect copy.
+  // Any other address keeps coming, but two emails of the same location type
+  // are a conflict the merge settles by dropping the prospect's, so each one
+  // is moved to a type the member does not use first.
+  $carried = [];
+  foreach (\Civi\Api4\Email::get(FALSE)
+    ->addSelect('id', 'email', 'location_type_id')
+    ->addWhere('contact_id', '=', $prospectId)
+    ->execute() as $e) {
+    if (in_array(strtolower($e['email']), $myAddresses, TRUE)) {
+      continue;
+    }
+    $carried[] = strtolower($e['email']);
+    if (in_array((int) $e['location_type_id'], $usedTypes, TRUE)) {
+      $free = array_values(array_diff($spareTypes, $usedTypes));
+      if ($free) {
+        \Civi\Api4\Email::update(FALSE)
+          ->addWhere('id', '=', $e['id'])
+          ->addValue('location_type_id', $free[0])
+          ->addValue('is_primary', FALSE)
+          ->execute();
+        $usedTypes[] = $free[0];
+      }
+    }
+  }
+
+  $groupsBefore = array_map('intval', \Civi\Api4\GroupContact::get(FALSE)
+    ->addSelect('group_id')
+    ->addWhere('contact_id', '=', $memberId)
+    ->addWhere('status', '=', 'Added')
+    ->execute()->column('group_id'));
+
+  civicrm_api3('Contact', 'merge', [
+    'to_keep_id' => $memberId,
+    'to_remove_id' => $prospectId,
+    'mode' => 'aggressive',
+    'check_permissions' => 0,
+  ]);
+
+  $inherited = \Civi\Api4\GroupContact::get(FALSE)
+    ->addSelect('id')
+    ->addWhere('contact_id', '=', $memberId)
+    ->addWhere('status', '=', 'Added')
+    ->addWhere('group_id', 'NOT IN', $groupsBefore ?: [0])
+    ->execute()->column('id');
+  if ($inherited) {
+    \Civi\Api4\GroupContact::delete(FALSE)->addWhere('id', 'IN', $inherited)->execute();
+  }
+
+  $now = \Civi\Api4\Email::get(FALSE)
+    ->addSelect('id', 'email', 'is_primary')
+    ->addWhere('contact_id', '=', $memberId)
+    ->execute();
+  $have = array_map('strtolower', $now->column('email'));
+  foreach (array_diff($carried, $have) as $lost) {
+    $free = array_values(array_diff($spareTypes, $usedTypes));
+    \Civi\Api4\Email::create(FALSE)->setValues([
+      'contact_id' => $memberId,
+      'email' => $lost,
+      'location_type_id' => $free[0] ?? $spareTypes[0],
+      'is_primary' => FALSE,
+    ])->execute();
+    if ($free) {
+      $usedTypes[] = $free[0];
+    }
+  }
+  foreach ($now as $e) {
+    if ((int) $e['id'] === $primaryId && !$e['is_primary']) {
+      \Civi\Api4\Email::update(FALSE)->addWhere('id', '=', $primaryId)->addValue('is_primary', TRUE)->execute();
+    }
+  }
+
+  // The address both records shared arrives twice when the two copies had
+  // different location types. One copy is enough, and the primary one stays.
+  $seen = [];
+  foreach (\Civi\Api4\Email::get(FALSE)
+    ->addSelect('id', 'email')
+    ->addWhere('contact_id', '=', $memberId)
+    ->addOrderBy('is_primary', 'DESC')
+    ->addOrderBy('id')
+    ->execute() as $e) {
+    $key = strtolower($e['email']);
+    if (isset($seen[$key])) {
+      \Civi\Api4\Email::delete(FALSE)->addWhere('id', '=', $e['id'])->execute();
+      continue;
+    }
+    $seen[$key] = TRUE;
+  }
 }
 
 /**
