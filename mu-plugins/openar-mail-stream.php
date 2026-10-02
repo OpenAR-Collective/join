@@ -2,7 +2,7 @@
 /**
  * Plugin Name: OpenAR mail streams
  * Description: Routes CiviMail bulk mailings onto the Postmark broadcast stream matching their audience, delivers them to Postmark's broadcast SMTP host, and tells Postmark never to track.
- * Version:     1.3.0
+ * Version:     1.3.1
  * License:     Apache-2.0
  *
  * Postmark separates transactional mail from bulk, and its terms require
@@ -52,6 +52,7 @@ if (!defined('ABSPATH')) {
 const OPENAR_MAIL_STREAMS = [
   'prospects' => 'conference-attendee-blast',
   'Brainstorm 2026' => 'conference-attendee-blast',
+  'Open Source Comes to Collections Webinar' => 'conference-attendee-blast',
 ];
 
 /**
